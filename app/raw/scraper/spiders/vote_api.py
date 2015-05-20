@@ -15,4 +15,10 @@ The strategy for handling this is the same as the page.  We'll scrape the index 
 and create items for each date.  We'll download each XML file separately and save.
 The processor will load the XML into the database, then we'll parse the XML with
 an object abstraction at the parsing stage.
+
+Long's note: Legco already as an API for vote record, accessible via http://app.legco.gov.hk/vrdb/odata/vVotingResult
+More details could be found on http://www.legco.gov.hk/odata/chinese/vrdb.html, 
+but the API seems offline when I visit (19 May 2015).
+Looking through the meta-data (http://app.legco.gov.hk/vrdb/odata/$metadata), 
+we should try to bind these properties as keys to our models.
 """

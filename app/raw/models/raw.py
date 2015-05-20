@@ -192,6 +192,10 @@ class RawMember(RawModel):
         return u"{} {}".format(unicode(self.name_e), unicode(self.name_c))
 
     def get_raw_schedule_member(self):
+        """
+        (Try to) return a RawScheduleMember object by his/her id as in LibraryMember.
+        Some members do not exist in ScheduleDB, so return None in this case.
+        """
         try:
             # member-<#> to smember-<#>
             return RawScheduleMember.objects.get(uid='s' + self.uid)

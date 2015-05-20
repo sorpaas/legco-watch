@@ -121,7 +121,7 @@ def process_scrape(spider_name):
         logger.warn("No jobs found for spider {}".format(spider_name))
         return
 
-    items_file = job.raw_response
+    items_file = job.raw_response # a jsonl file in ./scrapes
 
     # Disable SQL logging
     if settings.DEBUG:

@@ -24,7 +24,8 @@ class ScheduleMember(TypedItem):
 class ScheduleMemberSpider(Spider):
     """
     Members from the schedule database.  We need this to get the
-    member_id for the members so we can rebuild the relationships
+    member_id for the members so we can rebuild the relationships.
+    The url returns a JSON object.
     """
     name = 'schedule_member'
     start_urls = [

@@ -133,14 +133,14 @@ class LibraryMemberSpider(Spider):
                 field_values.extend(fields.xpath('./td[2]/a/text()').extract())
                 #self.log('field_names = %s' % field_names,level=log.WARNING)
                 #self.log('field_values = %s' % field_values,level=log.WARNING)
-        except:
+        except ValueError:
             pass
         try:
             if field_names.index(u'個人網頁'):
                 field_values.extend(fields.xpath('./td[2]/a/text()').extract())
                 #self.log('field_names = %s' % field_names,level=log.WARNING)
                 #self.log('field_values = %s' % field_values,level=log.WARNING)
-        except:
+        except ValueError:
             pass
             
         
