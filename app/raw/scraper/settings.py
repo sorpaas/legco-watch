@@ -22,7 +22,8 @@ ITEM_PIPELINES = [
     'scrapy.contrib.pipeline.files.FilesPipeline',
 ]
 
-DATA_DIR_BASE = '/legco-data'
+#DATA_DIR_BASE = '/legco-data' #original path
+DATA_DIR_BASE = '/home/long/Desktop/legco-watch'
 FILES_STORE = os.path.join(DATA_DIR_BASE, 'files')
 
 DOWNLOADER_MIDDLEWARES = {

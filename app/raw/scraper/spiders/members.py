@@ -12,6 +12,8 @@ from scrapy.spider import Spider
 from raw.scraper.items import TypedItem
 import logging
 
+from scrapy import log
+import sys
 
 class MemberBio(TypedItem):
     type_name = 'LibraryMemberBio'
@@ -123,7 +125,32 @@ class LibraryMemberSpider(Spider):
         fields = tables[0].xpath('.//table/tr')
         field_names = fields.xpath('./td[1]/text()').extract()
         field_values = fields.xpath('./td[2]/text()').extract()
-        # Copy over basic informtaion
+
+        # need special treatment for homepage, since it is a hyperlink not text
+        # very dirty fix, makes use of fact that homepage appears last
+        try:
+            if field_names.index(u'Personal homepage'):
+                field_values.extend(fields.xpath('./td[2]/a/text()').extract())
+                #self.log('field_names = %s' % field_names,level=log.WARNING)
+                #self.log('field_values = %s' % field_values,level=log.WARNING)
+        except ValueError:
+            pass
+        try:
+            if field_names.index(u'個人網頁'):
+                field_values.extend(fields.xpath('./td[2]/a/text()').extract())
+                #self.log('field_names = %s' % field_names,level=log.WARNING)
+                #self.log('field_values = %s' % field_values,level=log.WARNING)
+        except ValueError:
+            pass
+            
+        
+        #try:
+        #    field_values[field_names.index('Personal homepage')]=fields.xpath('./td[2]/a/text()').extract()
+        #    self.log('field_values = %s' % field_values,level=log.WARNING)
+        #except:
+        #    pass
+        
+        # Copy over basic information
         for k, v in zip(field_names, field_values):
             to_field = kws['field_map'].get(k.strip(), None)
             if to_field is None:

@@ -21,10 +21,10 @@ TEMPLATE_DEBUG = True
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'legcowatch',
-        'USER': 'legcowatchdb',
-        'PASSWORD': 'e8aVqxwaKVXMfBT',
-        'HOST': 'db',
+        'NAME': 'lwdb',
+        'USER': 'postgres',
+        'PASSWORD': 'e8aVqxwaKVXMfBT\q',
+        'HOST': 'localhost',
         'PORT': '5432'
     }
 }

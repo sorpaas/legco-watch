@@ -1,6 +1,7 @@
 #!/bin/bash
 
 echo "Building containers"
+docker build -t legcowatch/base docker/base
 docker build -t legcowatch/dbdata docker/dbdata
 docker build -t legcowatch/logdata docker/logdata
 docker build -t legcowatch/appdata docker/appdata
