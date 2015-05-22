@@ -32,7 +32,7 @@ class LibraryAgendaProcessor(BaseProcessor):
         uid = self._generate_base_agenda_uid(item)
         paper_number = self._get_paper_number(item)
         if len(item['links']) == 2:
-            # If there ar exactly two links, then one is English and the other Chinese
+            # If there are exactly two links, then one is English and the other Chinese
             if 'English' in item['links'][0][0]:
                 title_en, url_en = item['links'][0]
                 title_cn, url_cn = item['links'][1]

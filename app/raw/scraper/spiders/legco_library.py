@@ -31,8 +31,17 @@ class LibraryAgendaSpider(LegcoLibrarySpider):
     # allowed_domains = ["library.legco.gov.hk"]
     start_urls = [
         # Older agendas are in HTML
-        # Newer agendas are in doc format.  Not sure where the break happens
-        "http://library.legco.gov.hk:1080/search~S10?/tAgenda+for+the+meeting+of+the+Legislative+Council/tagenda+for+the+meeting+of+the+legislative+council/1%2C670%2C670%2CB/browse",
+        # Newer agendas are in doc format.
+        # The break happens on 2004.10.06 (entry 299)- this is the first doc agenda.
+        # http://library.legco.gov.hk:1080/search~S10?/tAgenda+for+the+meeting+of+the+Legislative+Council/tagenda+for+the+meeting+of+the+legislative+council/289%2C670%2C670%2CB/frameset&FF=tagenda+for+the+meeting+of+the+legislative+council+2004+++10+++06&1%2C1%2C
+        # Thus the last old HTML agenda is on 2004.07.13
+        # http://library.legco.gov.hk:1080/search~S10?/tAgenda+for+the+meeting+of+the+Legislative+Council/tagenda+for+the+meeting+of+the+legislative+council/289%2C670%2C670%2CB/frameset&FF=tagenda+for+the+meeting+of+the+legislative+council+2004+++07+++13&1%2C1%2C
+        # Some even newer doc agendas has an "Internet version" as well - cannot see what the differences are compared to its normal version.
+        
+        # below is an old link - only covers the period up to the end of 2014
+        #"http://library.legco.gov.hk:1080/search~S10?/tAgenda+for+the+meeting+of+the+Legislative+Council/tagenda+for+the+meeting+of+the+legislative+council/1%2C670%2C670%2CB/browse",
+        # new link. Covers up to 2015.05.13 (tested on 2015.05.21)
+        "http://library.legco.gov.hk:1080/search~S10/?searchtype=t&searcharg=Agenda+for+the+meeting+of+the+Legislative+Council"
     ]
 
     def parse(self, response):

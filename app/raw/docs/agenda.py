@@ -25,6 +25,8 @@ COMMITTEE_STAGE_PATTERN_C = u'全體委員會審議階段'
 logger = logging.getLogger('legcowatch-docs')
 QUESTION_PATTERN_E = ur'^\*?([0-9]+)\..*?Hon\s(.*?)\sto ask:'
 QUESTION_PATTERN_C = ur'^\*?([0-9]+)\.\s*(.*?)議員問:'
+# Note: The first question on 2014.11.20 does not have a number at start, which caused processor to fail.
+# Since this rarely occurs, we may consider overriding that particular entry.
 LEGISLATION_E = u'Subsidiary Legislation'
 LEGISLATION_C = u'附屬法例'
 OTHER_PAPERS_E = u'Other Paper'
@@ -550,8 +552,8 @@ class AgendaQuestion(object):
             self.number = match.group(1)
             self.asker = match.group(2)
             # Get question type
-            # Can be oral or written.  Could also be urgent, but have not yet seen how these are
-            # indicated
+            # Can be oral or written.  Could also be urgent, in this case the heading will be 
+            # "根據《議事規則》第24(4)條提出的質詢 " - but no discrimination is made yet
             if text.startswith('*'):
                 self.type = self.QTYPE_WRITTEN
             else:
