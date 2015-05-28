@@ -2,6 +2,10 @@
 # -*- coding: utf-8 -*-
 
 # Tests for CouncilAgenda object
+
+# If your tests rely on database access such as creating or querying models, 
+# be sure to create your test classes as subclasses of django.test.TestCase 
+# rather than unittest.TestCase
 from django.test import TestCase
 import logging
 from raw.docs import agenda
