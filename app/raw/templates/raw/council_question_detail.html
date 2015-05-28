@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h1>Council Question - {{ parser.uid }}</h1>
+  <p>
+    <a href="{{ object.subject_link }}">Original document - Agenda</a>
+  </p>
+  <p>
+    {% if object.reply_link %}
+      <a href="{{ object.reply_link }}">Original document - Reply</a>
+    {% endif %}
+  </p>
+  <p>
+    <a href="{% url 'raw_question_source' pk=object.id %}">Parsed source</a>
+  </p>
+  <p>
+    <a href="{% url 'error_report' %}?url={{ request.path }}">Report an error on this page</a>
+  </p>
+  
+  {% if parser.question_title %}
+    <h3> <u>Subject</u> </h3><p><h2><strong>{{ parser.question_title }} </strong></h2> {% if parser.date %} {{ parser.date }}{% endif %}</p>
+  {% endif %}
+  
+  {% if parser.asker %}
+    {% if name %}<a href="{% url 'raw_member' pk=name.1.id %}">{{ parser.asker }}</a>{% else %}{{ parser.asker }}{% endif %} asks {{ parser.repliers }} ({% if parser.oral %}Oral{% else %}Written{% endif %}){% if parser.urgent%} [Urgent]{% endif %}:</strong></p>
+  {% endif %}
+ <h3> <u>Question:</u> </h3>
+  {% if parser.question_content %}
+    <p>{{ parser.question_content|safe }}</p>
+  {% endif %}
+  <h3> <u>Reply:</u> </h3>
+    {% if parser.reply_content %}
+    <p>{{ parser.reply_content|safe }}</p>
+  {% endif %}
+  
+{% endblock content %}

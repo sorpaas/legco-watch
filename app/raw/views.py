@@ -9,15 +9,14 @@ from django.views.generic.detail import BaseDetailView
 from django.views.generic.edit import FormMixin
 from raw import models
 from raw.forms import OverrideForm
-from raw.models import RawCouncilAgenda, RawMember, RawCommittee, Override
+from raw.models import RawCouncilAgenda, RawMember, RawCommittee, RawCouncilQuestion, Override
 from raw.names import NameMatcher, MemberName
 
-
+#RawCouncilAgenda
 class RawCouncilAgendaListView(ListView):
     model = RawCouncilAgenda
     template_name = 'raw/agenda_list.html'
     paginate_by = 25
-
 
 class RawCouncilAgendaDetailView(DetailView):
     model = RawCouncilAgenda
@@ -39,7 +38,6 @@ class RawCouncilAgendaDetailView(DetailView):
         context['questions'] = questions
         return context
 
-
 class RawCouncilAgendaSourceView(BaseDetailView):
     model = RawCouncilAgenda
     slug_field = 'uid'
@@ -48,15 +46,15 @@ class RawCouncilAgendaSourceView(BaseDetailView):
         self.object = self.get_object()
         return HttpResponse(self.object.get_source())
 
-
+##RawMember
 class RawMemberListView(ListView):
     model = RawMember
     template_name = 'raw/member_list.html'
     paginate_by = 25
 
-
 class RawMemberDetailView(DetailView):
     model = RawMember
+    slug_field = 'uid'
     template_name = 'raw/member_detail.html'
 
     def get_context_data(self, **kwargs):
@@ -72,17 +70,52 @@ class RawMemberDetailView(DetailView):
         context['questions'] = [xx for xx, dd in questions_with_dates]
         return context
 
-
+#RawCommittee
 class RawCommitteeListView(ListView):
     model = RawCommittee
     template_name = 'raw/committee_list.html'
     paginate_by = 25
 
-
 class RawCommitteeDetailView(DetailView):
     model = RawCommittee
+    slug_field = 'uid'
     template_name = 'raw/committee_detail.html'
 
+
+#RawCouncilQuestion
+class RawCouncilQuestionListView(ListView):
+    model = RawCouncilQuestion
+    template_name = 'raw/council_question_list.html'
+    paginate_by = 100
+    
+class RawCouncilQuestionDetailView(DetailView):
+    model = RawCouncilQuestion
+    slug_field = 'uid'
+    template_name = 'raw/council_question_detail.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super(RawCouncilQuestionDetailView, self).get_context_data(**kwargs)
+        parser = self.object.get_parser()
+        context['parser'] = parser
+        if parser.asker:
+            matcher = RawMember.get_matcher()
+            name = MemberName(parser.asker)
+            match = matcher.match(name)
+            context['name']=match
+        return context
+
+class RawCouncilQuestionSourceView(BaseDetailView):
+    model = RawCouncilQuestion
+    slug_field = 'uid'
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        return HttpResponse(self.object.get_source().decode('hkscs'))
+"""
+#######################################
+###########Parsed model view###########
+#######################################
+"""
 
 class ParsedModelListView(TemplateView):
     template_name = 'raw/parsedmodel_list.html'
