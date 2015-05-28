@@ -7,6 +7,7 @@ from django.utils.encoding import force_unicode
 import re
 from .. import utils
 from ..docs.agenda import CouncilAgenda, AgendaQuestion
+from ..docs.question import CouncilQuestion
 from ..names import NameMatcher, MemberName
 from constants import *
 
@@ -238,6 +239,9 @@ class RawCouncilQuestion(RawModel):
     subject_link = models.TextField(blank=True)
     reply_link = models.TextField(blank=True)
     language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
+    # Actually, this local file stores the context of reply, which also contains the question
+    # Old questions does no have replies in question - need to parse hansard instead
+    local_filename = models.CharField(max_length=255, null=True, blank=True)
 
     UID_PREFIX = 'question'
     DATE_RE = ur'(?P<day>\d{1,2})\.(?P<mon>\d{1,2})\.(?P<year>\d{2,4})'
@@ -262,7 +266,7 @@ class RawCouncilQuestion(RawModel):
 
     @property
     def is_urgent(self):
-        return u'UQ.' in self.number_and_type
+        return u'UQ' in self.number_and_type
 
     @property
     def is_oral(self):
@@ -322,7 +326,57 @@ class RawCouncilQuestion(RawModel):
         # Check type
         if self.is_oral and agenda_question.type != AgendaQuestion.QTYPE_ORAL:
             logger.warn("u{} Question types don't match: {} vs {}".format(self.uid, u'Oral' if self.is_oral else u'Written', u'Oral' if agenda_question.type == AgendaQuestion.QTYPE_ORAL else u'Written'))
+    
+    ##### added for new model- Long #####
+    def full_local_filename(self):
+        if self.local_filename:
+            return utils.get_file_path(self.local_filename)
+        else:
+            return None
+    
+    def get_source(self):
+        full_file = self.full_local_filename()
+        if full_file:
+            with open(full_file) as f:
+                #this source is usually encoded with 'hkscs'
+                #to display correctly, do "src.decode('hkscs')"
+                #I leave it as it is here to separate the logic
+                src = f.read()
+                return src
+        else:
+            return None
+    
+    def get_parser(self):
+        """
+        Returns the parser for this RawCouncilQuestion object
+        """
+        src = self.get_source() #source should be an htm file
+        urgent = self.is_urgent
+        oral = self.is_oral
+        date = self.date
+        link = self.reply_link
+        
+        try:
+            return CouncilQuestion(self.uid,date,urgent,oral,src,link)
+        except BaseException as e:
+            logger.warn(u'Could not parse question for {}'.format(self.uid))
+            logger.warn(e)
+            return None
 
+    @classmethod
+    def get_from_parser(cls, parser):
+        """
+        Get a model object from a CouncilQuestion parser object
+        """
+        return cls.objects.get(uid=parser.uid)
+
+    def _dump_as_fixture(self):
+        """
+        Saves the raw html to a fixture for testing
+        """
+        with open('raw/tests/fixtures/{}.html'.format(self.uid), 'wb') as f:
+            f.write(self.get_source().encode('utf-8'))
+    #####End added by Long#####
 
 class RawScheduleMember(RawModel):
     """

@@ -3,6 +3,11 @@
 # See documentation in:
 # http://doc.scrapy.org/en/latest/topics/items.html
 
+# A reminder: The 2 fields, 'file_urls' and 'files' are special fields
+# required by scrapy pipeline for storing files to local disk.
+# See https://groups.google.com/forum/print/msg/scrapy-users/kzGHFjXywuY/O6PIhoT3thsJ
+# for more details and usage.
+
 from scrapy.item import Item, Field
     
 class TypedItem(Item):
@@ -24,6 +29,7 @@ class TypedItem(Item):
 #  \__\_\\__,_|\___||___/\__|_|\___/|_| |_|___/
 #                                             
 
+# Note that these questions-related items are not used yet
 class QuestionRecordQuestion(TypedItem):
     type_name = "QuestionRecordQuestion"
 

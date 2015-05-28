@@ -124,3 +124,9 @@ def grouper(iterable, n, fillvalue=None):
     # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx
     args = [iter(iterable)] * n
     return izip_longest(fillvalue=fillvalue, *args)
+
+def utf2html(ustring):
+    ustring = ustring.replace('\r\n','<br><br />')
+    ustring = ustring.replace('\n','<br><br />')
+    ustring = ustring.replace('\t','    ')
+    return ustring

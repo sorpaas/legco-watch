@@ -11,6 +11,7 @@ from scrapy.spider import Spider
 from scrapy import log
 import lxml
 import re
+import urlparse
 
 from raw.scraper.items import TypedItem
 
@@ -25,6 +26,9 @@ class Question(TypedItem):
     subject_link = Field()
     reply_link = Field()
     language = Field()
+    charset = Field()
+    file_urls = Field()
+    files = Field()
 
 
 class QuestionMixin(object):
@@ -102,7 +106,7 @@ class QuestionSpider(QuestionMixin, Spider):
         """
         Given a question row, create a dict with the question fields
         """
-        # Sometimes replies don't have links
+        # Sometimes replies don't have links (for various reasons)- omit them
         this_question = {
             'date': this_date,
             'source_url': response.url,
@@ -113,7 +117,16 @@ class QuestionSpider(QuestionMixin, Spider):
             'language': language
         }
         try:
-            this_question['reply_link'] = row[3][0].get('href', None)
+            reply_link = row[3][0].get('href', None)
+            # Some links have a '%20' at the end, some are pdf, 
+            # and some rare case missing .htm at the end
+            reply_link = reply_link.replace('%20','')
+            if reply_link[-3:]=='pdf':
+                reply_link = urlparse.urljoin(response.url,reply_link)
+            elif reply_link[-3:]!='htm':
+                reply_link+='.htm'
+            this_question['reply_link'] = reply_link
+            this_question['file_urls'] = [reply_link]
         except IndexError:
             self.log(u'No reply link on {} from {}'.format(response.url, this_date), level=log.WARNING)
         return this_question
@@ -123,6 +136,7 @@ class OldQuestionSpider(QuestionMixin, Spider):
     name = 'council_question_old'
     start_urls = [
         # These below no longer have links to replies
+        # The replies are in hansards
         'http://www.legco.gov.hk/yr05-06/english/counmtg/question/ques0506.htm',
         'http://www.legco.gov.hk/yr04-05/english/counmtg/question/ques0405.htm',
         'http://www.legco.gov.hk/yr03-04/english/counmtg/question/ques0304.htm',
