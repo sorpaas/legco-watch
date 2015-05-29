@@ -10,9 +10,9 @@ import lxml.html
 from lxml.html.clean import clean_html, Cleaner
 import re
 from lxml.html import HTMLParser
-import urllib2
-from urllib2 import HTTPError
-from ..scraper.settings import USER_AGENT
+#import urllib2
+#from urllib2 import HTTPError
+#from ..scraper.settings import USER_AGENT
 
 logger = logging.getLogger('legcowatch-docs')
 
@@ -69,10 +69,6 @@ class CouncilQuestion(object):
         #    with open(q_object.full_local_filename()) as f:
         #        htm = f.read() # htm is an str object
         
-        # Get rid of '\xa0'
-        #zero_width_joiners = u'\u200d'
-        #self.src = self.src.replace(zero_width_joiners, u'')
-        
         htm = self.src
         
         ## seems that the page used 'hkscs'(香港增補字符集) as charset
@@ -101,7 +97,12 @@ class CouncilQuestion(object):
         # Use the lxml cleaner
         if htm:
             # Assume 香港增補字符集hkscs is used
-            htm = htm.decode('hkscs')
+            try:
+                htm = htm.decode('hkscs')
+            except UnicodeDecodeError:
+                htm = htm.decode('utf-8')
+            except:
+                pass
             cleaner = Cleaner()
             parser = HTMLParser(encoding='utf-8')
             # Finally, load the cleaned string to an ElementTree
@@ -125,13 +126,14 @@ class CouncilQuestion(object):
         main_body = main_tree.xpath('p[1]')[0]
         main_body_str = main_body.text_content() # do not strip, keep the format
         
-        #======================================#
+        #=========================================================================#
         #TODO: there are a lot of different encodings of colons, e.g.
         #(:,：,︰) - with unicodes \u3A, \uFF1A, \uFE30 respectively (may be more)
         #and can have with whitespace ahead of them (not need to care for behind)
         #sometimes the colon is missing...
         #Find a way to handle them concisely!
-        #======================================#
+        #Currently, ur'\s?(:|：|︰)' is used to deal with them - but be cautious! 
+        #=========================================================================#
         
         # Parse the title
         #title_re_e = ur'LC(.*)?Q(?P<number>\d*)?:\s*(?P<subject>.+)' #e.g. 'LCQ17: Babies born in Hong Kong to mainland women'
@@ -139,15 +141,15 @@ class CouncilQuestion(object):
         
         # Simpler, no question number
         #note that the complete title is available in html header
-        title_re_e = ur'(?s).+( :|：| :|:|︰)\s*(?P<subject>.+)' 
-        title_re_c = ur'(?s).+( :|：| :|:|︰)\s*(?P<subject>.+)'
+        title_re_e = ur'(?s).+\s?(:|：|︰)\s*(?P<subject>.+)' 
+        title_re_c = ur'(?s).+\s?(:|：|︰)\s*(?P<subject>.+)'
         #notice the difference of colon (half- and full-width) in the above regex
-        print(u'Title str: {}'.format(title_str))
+        #print(u'Title str: {}'.format(title_str))
         match_pattern = title_re_e if self.english else title_re_c
         match_title = re.match(match_pattern, title_str)
         if match_title:
             self.question_title = match_title.group('subject')
-            print(u'Title: {}'.format(self.question_title))
+            #print(u'Title: {}'.format(self.question_title))
             # We choose not to deal with numbers, since they are better handled by scraper
             #if match_title['number']:
             #    self.question_number = match_title.group('number')
@@ -158,14 +160,14 @@ class CouncilQuestion(object):
             
         # Parse the main body - 3 parts
         #1. header of question, including date, asker and replier(s)
-        header_re_e = ur'(?P<header>.+)Question(s?)( :|：| :|:|︰)'
-        header_re_c = ur'(?P<header>.+)問題( :|：| :|:|︰)'
+        header_re_e = ur'(?P<header>.+)Question(s?)\s?(:|：|︰)'
+        header_re_c = ur'(?P<header>.+)問題\s?(:|：|︰)'
         match_pattern = header_re_e if self.english else header_re_c
         match_header = re.match(match_pattern, main_body_str.strip()) #strip here make it easier - get rid of newline
         header_str = None
         if match_header:
             header_str = match_header.group('header')
-            print(u'header str:{}'.format(header_str))
+            #print(u'header str:{}'.format(header_str))
         else:
             logger.warn('Cannot match header for question {}'.format(self.uid))
         
@@ -180,8 +182,8 @@ class CouncilQuestion(object):
                 asker_re_c2 = ur'(?s)(.*)以下(為|是)(?P<repliers>.+)今日（(?P<date>.+)）在立法會會議上根據(.*)(和|及)(?P<repliers>.+)的(.*?)(答|回)覆'
             else:
                 asker_re_e1 = ur'(?s)(.*) by (?P<asker>.+) and (.*?) reply by (?P<repliers>.+), (in|at) the Legislative Council'
-                asker_re_e2 = ur'(?s)(.*) reply by (?P<repliers>.+), to a question by (?P<asker>.+) (in|at) the Legislative Council'
-                asker_re_c1 = ur'(?s)(.*)以下(為|是)今日（(?P<date>.+)）在立法會會議上(?P<asker>.+)的提問(和|及)(?P<repliers>.+)的(.*?)答覆'
+                asker_re_e2 = ur'(?s)(.*) reply by (?P<repliers>.+), to a question by (?P<asker>.+) (on .*?)?(in|at) the Legislative Council'
+                asker_re_c1 = ur'(?s)(.*)以下(為|是)今日（(?P<date>.+)）在立法會會議上(?P<asker>.+)(就.*?)?的提問(和|及)(?P<repliers>.+)的(.*?)答覆'
                 asker_re_c2 = ur'(?s)(.*)以下(為|是)(?P<repliers>.+)今日（(?P<date>.+)）在立法會會議上就(?P<asker>.+)的提問(.*?)(答|回)覆'
                 
             match_pattern = asker_re_e1 if self.english else asker_re_c1       
@@ -196,7 +198,7 @@ class CouncilQuestion(object):
                 match_pattern = asker_re_e2 if self.english else asker_re_c2
                 match_asker = re.match(match_pattern, header_str)
                 if match_asker:
-                    print(u'2nd branch')
+                    #print(u'2nd branch')
                     self.asker = match_asker.group('asker')
                     self.repliers = match_asker.group('repliers')
                 else:
@@ -206,9 +208,9 @@ class CouncilQuestion(object):
         body = self.src.strip()
         #body = main_body_str #main_body_str messes up with format of text. Match the src instead.
         
-        q_content_re_e = ur'(?s).*Question(s?)( :|：| :|:|︰)(?P<q_content>(?s).*)Reply( :|：| :|:|︰)'
-        q_content_re_c = ur'(?s).*問題( :|：| :|:|︰)(?P<q_content>(?s).*)答覆( :|：| :|:|︰)?'
-        q_content_re_c2 = ur'(?s).*答覆( :|：| :|:|︰)(?P<q_content>(?s).*)答覆( :|：| :|:|︰)?' #rare case, missing '問題：' sub-heading, or a colon after '答覆'
+        q_content_re_e = ur'(?s).*Question(s?)\s?(:|：|︰)(?P<q_content>(?s).*)Reply\s?(:|：|︰)?'
+        q_content_re_c = ur'(?s).*問題\s?(:|：|︰)(?P<q_content>(?s).*)答覆\s?(:|：|︰)'
+        q_content_re_c2 = ur'(?s).*答覆\s?(:|：|︰)?(?P<q_content>(?s).*)答覆\s?(:|：|︰)?' #rare case, missing '問題：' sub-heading, or a colon after '答覆'
         match_pattern = q_content_re_e if self.english else q_content_re_c
         match_q_content = re.match(match_pattern, body)
         if match_q_content:
@@ -227,7 +229,7 @@ class CouncilQuestion(object):
         #reply_content_re_e = ur'(?s).*Reply:(?P<reply_content>(?s).*)Ends'
         #reply_content_re_c = ur'(?s).*答覆(：| :|:)(?P<reply_content>(?s).*)香港時間'
         reply_content_re_e = ur'(?s).*President,(?P<reply_content>(?s).*)Ends'
-        reply_content_re_c = ur'(?s).*主席(女士|)( :|：| :|:|︰)(?P<reply_content>(?s).*)完'
+        reply_content_re_c = ur'(?s).*主席(女士|)\s?(:|：|︰)(?P<reply_content>(?s).*)完'
         match_pattern = reply_content_re_e if self.english else reply_content_re_c
         match_reply = re.match(match_pattern, body)
         if match_reply:

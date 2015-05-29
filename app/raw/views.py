@@ -96,12 +96,13 @@ class RawCouncilQuestionDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super(RawCouncilQuestionDetailView, self).get_context_data(**kwargs)
         parser = self.object.get_parser()
-        context['parser'] = parser
-        if parser.asker:
-            matcher = RawMember.get_matcher()
-            name = MemberName(parser.asker)
-            match = matcher.match(name)
-            context['name']=match
+        if parser:
+            context['parser'] = parser
+            if parser.asker:
+                matcher = RawMember.get_matcher()
+                name = MemberName(parser.asker)
+                match = matcher.match(name)
+                context['name']=match
         return context
 
 class RawCouncilQuestionSourceView(BaseDetailView):

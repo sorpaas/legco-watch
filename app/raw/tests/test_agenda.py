@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 # Tests for CouncilAgenda object
+
 from django.test import TestCase
 import logging
 from raw.docs import agenda
-
 
 # We use fixtures which are raw HTML versions of the agendas to test the parser
 # Each test case works with one source.
