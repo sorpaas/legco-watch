@@ -4,7 +4,7 @@
   <h1>Raw Council Qusetions</h1>
   <ul>
   {% for question in object_list %}
-    <li><a href="{% url 'raw_question' question.id %}">{{ question.uid }}</a></li>
+    <li><a href="{% url 'raw_question' question.id %}">{{ question.uid }}:: {{ question.subject}}</a></li>
   {% endfor %}
   </ul>
   Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}

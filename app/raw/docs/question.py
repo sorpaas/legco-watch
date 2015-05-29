@@ -10,9 +10,9 @@ import lxml.html
 from lxml.html.clean import clean_html, Cleaner
 import re
 from lxml.html import HTMLParser
-import urllib2
-from urllib2 import HTTPError
-from ..scraper.settings import USER_AGENT
+#import urllib2
+#from urllib2 import HTTPError
+#from ..scraper.settings import USER_AGENT
 
 logger = logging.getLogger('legcowatch-docs')
 
@@ -69,10 +69,6 @@ class CouncilQuestion(object):
         #    with open(q_object.full_local_filename()) as f:
         #        htm = f.read() # htm is an str object
         
-        # Get rid of '\xa0'
-        #zero_width_joiners = u'\u200d'
-        #self.src = self.src.replace(zero_width_joiners, u'')
-        
         htm = self.src
         
         ## seems that the page used 'hkscs'(香港增補字符集) as charset
@@ -101,7 +97,12 @@ class CouncilQuestion(object):
         # Use the lxml cleaner
         if htm:
             # Assume 香港增補字符集hkscs is used
-            htm = htm.decode('hkscs')
+            try:
+                htm = htm.decode('hkscs')
+            except UnicodeDecodeError:
+                htm = htm.decode('utf-8')
+            except:
+                pass
             cleaner = Cleaner()
             parser = HTMLParser(encoding='utf-8')
             # Finally, load the cleaned string to an ElementTree
@@ -143,12 +144,12 @@ class CouncilQuestion(object):
         title_re_e = ur'(?s).+\s?(:|：|︰)\s*(?P<subject>.+)' 
         title_re_c = ur'(?s).+\s?(:|：|︰)\s*(?P<subject>.+)'
         #notice the difference of colon (half- and full-width) in the above regex
-        print(u'Title str: {}'.format(title_str))
+        #print(u'Title str: {}'.format(title_str))
         match_pattern = title_re_e if self.english else title_re_c
         match_title = re.match(match_pattern, title_str)
         if match_title:
             self.question_title = match_title.group('subject')
-            print(u'Title: {}'.format(self.question_title))
+            #print(u'Title: {}'.format(self.question_title))
             # We choose not to deal with numbers, since they are better handled by scraper
             #if match_title['number']:
             #    self.question_number = match_title.group('number')
@@ -166,7 +167,7 @@ class CouncilQuestion(object):
         header_str = None
         if match_header:
             header_str = match_header.group('header')
-            print(u'header str:{}'.format(header_str))
+            #print(u'header str:{}'.format(header_str))
         else:
             logger.warn('Cannot match header for question {}'.format(self.uid))
         
@@ -188,7 +189,7 @@ class CouncilQuestion(object):
             match_pattern = asker_re_e1 if self.english else asker_re_c1       
             match_asker = re.match(match_pattern, header_str)
             if match_asker:
-                print(u'1st branch')
+                #print(u'1st branch')
                 #print(match_asker.groups())
                 self.asker = match_asker.group('asker')
                 self.repliers = match_asker.group('repliers')
@@ -197,7 +198,7 @@ class CouncilQuestion(object):
                 match_pattern = asker_re_e2 if self.english else asker_re_c2
                 match_asker = re.match(match_pattern, header_str)
                 if match_asker:
-                    print(u'2nd branch')
+                    #print(u'2nd branch')
                     self.asker = match_asker.group('asker')
                     self.repliers = match_asker.group('repliers')
                 else:

@@ -10,6 +10,7 @@ from scrapy.selector import Selector
 from scrapy.spider import Spider
 from scrapy import log
 import lxml
+import lxml.html
 import re
 import urlparse
 
