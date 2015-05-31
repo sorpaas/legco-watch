@@ -32,7 +32,7 @@ class CouncilQuestion(object):
     Question_content
     Reply_content
     """
-    def __init__(self, uid, date, urgent, oral, src, link,*args, **kwargs):
+    def __init__(self, uid, date, urgent, oral, src, subject, link,*args, **kwargs):
         logger.debug(u'** Parsing question {}'.format(uid))
         self.uid = uid
         if uid[-1] == 'e':
@@ -43,6 +43,7 @@ class CouncilQuestion(object):
         self.date = date
         self.urgent = urgent
         self.oral = oral
+        self.subject = subject
         self.link = link
         
         self.tree = None
@@ -124,7 +125,10 @@ class CouncilQuestion(object):
         #1. title string, no newlines
         #e.g. 'LCQ17: Babies born in Hong Kong to mainland women'
         #title_str = main_tree.text.strip() #also functional
-        title_str =self.tree.text #more robust than the above one
+        #more robust than the above one
+        #title_str here may be different from 'subject' field in model. 
+        #Maybe this is the title used by repliers? Shall we include this in reply section?
+        title_str =self.tree.text 
         #print(self.tree.text.encode('utf-8'))
 
         #2. main body, including question header, question content and reply

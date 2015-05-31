@@ -355,9 +355,10 @@ class RawCouncilQuestion(RawModel):
         oral = self.is_oral
         date = self.date
         link = self.reply_link
+        subject = self.subject
         
         try:
-            return CouncilQuestion(self.uid,date,urgent,oral,src,link)
+            return CouncilQuestion(self.uid,date,urgent,oral,src,subject,link)
         except BaseException as e:
             logger.warn(u'Could not parse question for {}'.format(self.uid))
             logger.warn(e)
