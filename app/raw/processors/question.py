@@ -100,8 +100,9 @@ class QuestionProcessor(BaseProcessor):
         UIDs for questions are of the form 'question-09.10.2013-1-e' (question-<date>-<number>-<lang>)
         """
         #most common, e.g. 'UQ. 2 (Oral)'
-        number_re = ur'Q\.\s?(?P<number>\d{1,2})\s?\(?(?P<qtype>\w+)\)?' 
+        number_re = ur'Q\.\s?(?P<number>\d{1,2})\s?\(?(?P<qtype>\w+)\)?'
         # if there is only 1 urgent question, e.g. 'UQ(Oral)'
+        # in rare case the 'U' was omitted
         number_re_nonumber = ur'UQ\(?(?P<qtype>\w+)\)?'
         # in rare cases the type was omitted, e.g. 'Q. 8', but actually we do not use type in uid
         # and we can try to retrieve type via its other language counterpart
@@ -123,7 +124,7 @@ class QuestionProcessor(BaseProcessor):
                 else:
                     raise RuntimeError(u'Could not parse number and type of question from {}'.format(item['number_and_type']))
         
-        is_urgent = u'UQ' in item['number_and_type']
+        #is_urgent = u'UQ' in item['number_and_type']
         matches = match.groupdict()
         
         if no_number_flag==1:
@@ -132,6 +133,10 @@ class QuestionProcessor(BaseProcessor):
             number = matches['number']
         
         lang = item['language'].lower()
+        
+        #in some very rare cases the number is 0 but no 'U'
+        is_urgent = (u'UQ' in item['number_and_type']) or number=='0' or number==0
+        
         if not is_urgent:
             return u'question-{}-{}-{}'.format(date, number, lang)
         else:
