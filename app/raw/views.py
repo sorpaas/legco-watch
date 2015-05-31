@@ -111,7 +111,7 @@ class RawCouncilQuestionSourceView(BaseDetailView):
 
     def get(self, request, *args, **kwargs):
         self.object = self.get_object()
-        return HttpResponse(self.object.get_source().decode('hkscs'))
+        return HttpResponse(self.object.get_source().decode('hkscs',errors='ignore'))
 """
 #######################################
 ###########Parsed model view###########

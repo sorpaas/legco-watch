@@ -32,9 +32,9 @@ urlpatterns = patterns('',
     #CouncilQuestion
     url(r'raw/questions/?$', raw.views.RawCouncilQuestionListView.as_view(),name='raw_question_list'),
     url(r'raw/questions/(?P<pk>[0-9]+)/?$', raw.views.RawCouncilQuestionDetailView.as_view(),name='raw_question'),
-    url(r'^raw/questions/(?P<slug>[a-zA-Z0-9\-_]+)/?$', raw.views.RawCouncilQuestionDetailView.as_view(), name='raw_question_uid'),
+    url(r'^raw/questions/(?P<slug>[a-zA-Z0-9\-_.]+)/?$', raw.views.RawCouncilQuestionDetailView.as_view(), name='raw_question_uid'),
     url(r'^raw/questions/(?P<pk>[0-9]+)/source/?$', raw.views.RawCouncilQuestionSourceView.as_view(), name='raw_question_source'),
-    url(r'^raw/questions/(?P<slug>[a-zA-Z0-9\-_]+)/source/?$', raw.views.RawCouncilQuestionSourceView.as_view(), name='raw_question_source_uid'),
+    url(r'^raw/questions/(?P<slug>[a-zA-Z0-9\-_.]+)/source/?$', raw.views.RawCouncilQuestionSourceView.as_view(), name='raw_question_source_uid'),
     
     #ERROR REPORT
     url(r'^error_report/?$', common.views.ErrorReportFormView.as_view(), name='error_report'),
