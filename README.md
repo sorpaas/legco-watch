@@ -1,6 +1,6 @@
 # LegCo Watch
 
-This project is no longer in active development.  Feel free to use its components for your own projects.
+This project is in active development.
 
 # Overview
 
@@ -82,3 +82,7 @@ There is also the ability to override the results of a parse with user inputs.  
 
 There is a basic front end that allows you to view the raw and parsed results of scrapes.  Start the Django development
 server, and you should be able to see an index page that lists some of the models and their data.
+
+## Current status
+
+I am working on parsing LegCo's Hansard records.
