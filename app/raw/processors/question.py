@@ -92,9 +92,6 @@ class QuestionProcessor(BaseProcessor):
                 continue
         logger.info("{} items processed, {} created, {} updated, {} errors".format(counter, self._count_created, self._count_updated, self._count_error))
     
-    def _process_question_item(self,item):
-        pass
-    
     def _generate_uid(self, item):
         """
         UIDs for questions are of the form 'question-09.10.2013-1-e' (question-<date>-<number>-<lang>)
@@ -110,8 +107,7 @@ class QuestionProcessor(BaseProcessor):
         
         no_number_flag=0
         no_type_flag=0
-        
-        date = item['date']
+
         match = re.search(number_re, item['number_and_type'], re.UNICODE)
         if match is None:
             match = re.search(number_re_nonumber, item['number_and_type'], re.UNICODE)
@@ -137,17 +133,18 @@ class QuestionProcessor(BaseProcessor):
         #in some very rare cases the number is 0 but no 'U'
         is_urgent = (u'UQ' in item['number_and_type']) or number=='0' or number==0
         
+        date = item['date']
+        # date is in format 'd.m.yyyy'. We want 'yyyymmdd'
+        date_str = date.split('.')
+        if len(date_str) ==3:
+            yr = date_str[-1]
+            mn = date_str[1] if len(date_str[1])==2 else '0'+date_str[1]
+            dd = date_str[0] if len(date_str[0])==2 else '0'+date_str[0]
+            date = yr+mn+dd
+        else:
+            raise RuntimeError(u'Incorrect date format: {}'.format(date))
+        
         if not is_urgent:
             return u'question-{}-{}-{}'.format(date, number, lang)
         else:
             return u'question-{}-u{}-{}'.format(date, number, lang)
-    
-    def _get_local_filename(self, link, item):
-        """
-        Given a link and an item to which the link belongs, get the local file path that
-        matches the link
-        """
-        for f in item['files']:
-            if link == f['url']:
-                return f['path']
-        return None

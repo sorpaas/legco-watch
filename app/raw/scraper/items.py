@@ -76,11 +76,15 @@ class HansardAgenda(TypedItem):
     """ This will need developed, as it is structured in HTML """
     type_name = "HansardAgenda"
     date = Field()
+    source_url = Field()
+    file_urls = Field()
+    files = Field()
 
 class HansardMinutes(TypedItem):
     """ This contains a PDF file of the mintues """
     type_name = "HansardMinutes"
     date = Field()
+    source_url = Field()
     file_urls = Field()
     files = Field()
 
@@ -88,7 +92,7 @@ class HansardRecord(TypedItem):
     """ This will contain a PDF file for the record for the date """
     type_name = "HansardRecord"
     date = Field()
-    language = Field() # Text string - 'en' | 'cn'
+    source_url = Field()
     file_urls = Field()
     files = Field()
 

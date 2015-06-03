@@ -1,6 +1,9 @@
+LANG_BOTH = 0
 LANG_CN = 1
 LANG_EN = 2
+
 LANG_CHOICES = (
+    (LANG_BOTH, 'Bilingual'),
     (LANG_CN, 'Chinese'),
     (LANG_EN, 'English')
 )

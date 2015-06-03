@@ -1,8 +1,10 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+
 """
 Document wrappers for LegCo questions (and replies)
 """
+
 import logging
 import lxml
 from lxml import etree
@@ -10,6 +12,7 @@ import lxml.html
 from lxml.html.clean import clean_html, Cleaner
 import re
 from lxml.html import HTMLParser
+
 import urllib2
 from urllib2 import HTTPError
 from ..scraper.settings import USER_AGENT
@@ -246,7 +249,11 @@ class CouncilQuestion(object):
                     self.repliers = self.repliers.strip()
                     if self.repliers[-1]==',' or self.repliers[-1]==u'的':
                         self.repliers = self.repliers[:-1]
-                
+            
+            #postprocessing
+            if self.asker:
+                self.asker = self.asker.replace(u'，', u'') #heading comma in a case
+            
         #2. content of question
         body = self.src.strip()
         #print('body str: {}'.format(body.encode('utf-8')))

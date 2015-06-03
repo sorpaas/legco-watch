@@ -120,7 +120,7 @@ class QuestionSpider(QuestionMixin, Spider):
         try:
             reply_link = row[3][0].get('href', None)
             # Some links have a '%20' at the end, some are pdf, 
-            # and some rare case missing .htm at the end
+            # and some rare cases missing .htm at the end
             reply_link = reply_link.replace('%20','')
             if reply_link[-3:]=='pdf':
                 reply_link = urlparse.urljoin(response.url,reply_link)

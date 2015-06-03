@@ -1,9 +1,10 @@
-#!/usr/local/bin/python
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 """
 Document wrappers for LegCo Agendas
 """
+
 from collections import OrderedDict
 import logging
 import lxml
@@ -27,7 +28,7 @@ logger = logging.getLogger('legcowatch-docs')
 QUESTION_PATTERN_E = ur'^\*?([0-9]+)\..*?Hon\s(.*?)\sto ask:'
 QUESTION_PATTERN_C = ur'^\*?([0-9]+)\.\s*(.*?)議員問:'
 # Note: The first question on 2014.11.20 does not have a number at start, which caused processor to fail.
-# Since this rarely occurs, we may consider overriding those particular entries.
+# Since this seldom occurs, we may consider overriding those particular entries.
 LEGISLATION_E = u'Subsidiary Legislation'
 LEGISLATION_C = u'附屬法例'
 OTHER_PAPERS_E = u'Other Paper'

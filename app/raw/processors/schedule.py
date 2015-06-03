@@ -176,7 +176,7 @@ class ScheduleMeetingProcessor(BaseScheduleProcessor):
         obj.slot_id = slot
         # Lookup the committee from the RawMeetingCommittee table
         mtg_cmt = RawMeetingCommittee.objects.filter(slot_id=slot)
-        logger.warn('mtg_cmt = {}'.format(mtg_cmt))
+        logger.info('mtg_cmt = {}'.format(mtg_cmt))
         if len(mtg_cmt) == 0:
             logger.warn('No committees for slot {}'.format(slot))
             mtg_cmt = None
@@ -184,7 +184,7 @@ class ScheduleMeetingProcessor(BaseScheduleProcessor):
         if mtg_cmt is not None:
             #obj.committees.add([xx.committee for xx in mtg_cmt])
         #obj.save()
-            """Modified"""
+            """Modified - lpounng"""
             # need to create an object first before filling in a Many-to-Many Relation.
             obj.save()
             for xx in mtg_cmt:

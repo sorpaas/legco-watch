@@ -9,6 +9,7 @@ from raw.processors.library_member import LibraryMemberProcessor
 from raw.processors.question import QuestionProcessor
 from raw.processors.schedule import ScheduleMemberProcessor, ScheduleCommitteeProcessor, ScheduleMembershipProcessor, \
     ScheduleMeetingCommitteeProcessor, ScheduleMeetingProcessor
+from raw.processors.hansard import HansardObjectProcessor
 from django.conf import settings
 
 
@@ -30,14 +31,16 @@ def get_processor_for_spider(spider):
 PROCESS_MAP = OrderedDict([
     ('library_agenda', LibraryAgendaProcessor),
     ('library_member', LibraryMemberProcessor),
+    ('council_hansard', HansardObjectProcessor),
     # The below processors should be run in this order
     ('schedule_member', ScheduleMemberProcessor),
     ('schedule_committee', ScheduleCommitteeProcessor),
-    ('schedule_membership', ScheduleMembershipProcessor),
+    ('schedule_membership', ScheduleMembershipProcessor),#a lot of 'Could not find committee committee-dddd' warnings
     ('schedule_meeting_committee', ScheduleMeetingCommitteeProcessor),
     ('schedule_meeting', ScheduleMeetingProcessor),
     ('council_question', QuestionProcessor),
-    ('council_question_old', QuestionProcessor),
+    ('council_question_old', QuestionProcessor),#not implemented
+    
 ])
 
 

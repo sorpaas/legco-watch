@@ -479,3 +479,57 @@ class RawMeetingCommittee(RawModel):
 
     def __unicode__(self):
         return u'{} {}'.format(self.slot_id, self._committee_id)
+
+##########################################
+# Hansard related objects
+
+##########################################
+
+class RawHansardAgenda(RawModel):
+    #raw_date is a date in format yyyy-mm-dd
+    #whereas raw_date_str is the "date" field, usually for debug now
+    #but can be used to group the agenda+minutes+record(s) in future
+    #since items of the same meeting should have a same and unique raw_date_str
+    raw_date = models.CharField(max_length=100, blank=True)
+    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
+    local_filename = models.CharField(max_length=255, blank=True)
+    # The URL link to the document
+    url = models.URLField(blank=True)
+    
+    UID_PREFIX = 'hansard_agenda'
+    
+    def __unicode__(self):
+        return unicode(self.uid)
+
+class RawHansardMinutes(RawModel):
+    raw_date = models.CharField(max_length=100, blank=True)
+    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
+    local_filename = models.CharField(max_length=255, blank=True)
+    url = models.URLField(blank=True)
+    
+    UID_PREFIX = 'hansard_minutes'
+    def __unicode__(self):
+        return unicode(self.uid)
+    
+# Use 2 models for Hansard Records, since they may need different parsers
+class RawHansardFormalRecord(RawModel):
+    raw_date = models.CharField(max_length=100, blank=True)# may span over 1 day
+    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES) #Floor versions contains 2 languages
+    local_filename = models.CharField(max_length=255, blank=True)
+    url = models.URLField(blank=True)
+    
+    UID_PREFIX = 'hansard_formal'
+    
+    def __unicode__(self):
+        return unicode(self.uid)
+
+class RawHansardFloorRecord(RawModel):
+    raw_date = models.CharField(max_length=100, blank=True)# may span over 1 day
+    local_filename = models.CharField(max_length=255, blank=True)
+    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
+    url = models.URLField(blank=True)
+    
+    UID_PREFIX = 'hansard_floor'
+    
+    def __unicode__(self):
+        return unicode(self.uid)
