@@ -215,7 +215,7 @@ class HansardMixin:
                     if absolute_url.endswith('pdf'):
                         hansard_record = HansardRecord()
                         hansard_record['date'] = date_info
-                        hansard_record['language'] = lang
+                        #hansard_record['language'] = lang
                         hansard_record['file_urls'] = [absolute_url]
                         hansard_record['source_url'] = response.url
                         yield hansard_record
@@ -290,27 +290,27 @@ class HansardSpider(HansardMixin,Spider):
                   #cannot handle Chinese yet.
                   #'http://www.legco.gov.hk/general/chinese/counmtg/yr12-16/mtg_1415.htm'
                   
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1314.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1213.htm'
+                  'http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1314.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1213.htm'
                   # 第四屆立法會 (2008至2012年)
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr08-12/mtg_1112.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr08-12/mtg_1011.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr08-12/mtg_0910.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr08-12/mtg_0809.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr08-12/mtg_special.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr08-12/mtg_1112.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr08-12/mtg_1011.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr08-12/mtg_0910.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr08-12/mtg_0809.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr08-12/mtg_special.htm',
                   # 第三屆立法會 (2004至2008年)
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr04-08/mtg_0708.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr04-08/mtg_0607.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr04-08/mtg_0506.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr04-08/mtg_0405.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr04-08/mtg_0708.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr04-08/mtg_0607.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr04-08/mtg_0506.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr04-08/mtg_0405.htm',
                   # 第二屆立法會 (2000至2004年)
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr00-04/mtg_0304.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr00-04/mtg_0203.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr00-04/mtg_0102.htm',
-                  #'http://www.legco.gov.hk/general/english/counmtg/yr00-04/mtg_0001.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr00-04/mtg_0304.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr00-04/mtg_0203.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr00-04/mtg_0102.htm',
+                  'http://www.legco.gov.hk/general/english/counmtg/yr00-04/mtg_0001.htm',
                   # 首屆立法會 (1998至2000年) 
-                  #'http://www.legco.gov.hk/yr99-00/english/counmtg/general/cou_mtg.htm',
-                  #'http://www.legco.gov.hk/yr98-99/english/counmtg/general/cou_mtg.htm',
+                  'http://www.legco.gov.hk/yr99-00/english/counmtg/general/cou_mtg.htm',
+                  'http://www.legco.gov.hk/yr98-99/english/counmtg/general/cou_mtg.htm',
                   ]
     
     

@@ -252,8 +252,12 @@ class CouncilQuestion(object):
             
             #postprocessing
             if self.asker:
-                self.asker = self.asker.replace(u'，', u'') #heading comma in a case
-            
+                self.asker = self.asker.replace(u'，', u'') #heading comma in a Chinese case
+                # get rid of titles, make it easier for Name Matcher
+                self.asker = self.asker.replace(u'the', u'')
+                self.asker = self.asker.replace(u'Hon', u'')
+                self.asker = self.asker.replace(u'Dr', u'')
+                
         #2. content of question
         body = self.src.strip()
         #print('body str: {}'.format(body.encode('utf-8')))

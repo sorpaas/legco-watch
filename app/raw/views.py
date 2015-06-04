@@ -33,6 +33,11 @@ class RawCouncilAgendaDetailView(DetailView):
             for q in parser.questions:
                 name = MemberName(q.asker)
                 match = matcher.match(name)
+                if match==None:
+                #try Chinese. 
+                #This will be better handled when we have different language display
+                    matcher = RawMember.get_matcher(english=False)
+                    match = matcher.match(name)
                 obj = (q, match)
                 questions.append(obj)
         context['questions'] = questions
@@ -98,10 +103,13 @@ class RawCouncilQuestionDetailView(DetailView):
         parser = self.object.get_parser()
         if parser:
             context['parser'] = parser
-            if parser.asker:
-                matcher = RawMember.get_matcher()
+            if parser.asker: 
                 name = MemberName(parser.asker)
+                matcher = RawMember.get_matcher()
                 match = matcher.match(name)
+                if match is None:
+                    matcher = RawMember.get_matcher(english=False)
+                    match = matcher.match(name)
                 context['name']=match
         return context
 
