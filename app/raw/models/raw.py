@@ -467,7 +467,7 @@ class RawMeetingCommittee(RawModel):
     committee = models.ForeignKey(RawCommittee, null=True, blank=True, related_name='meeting_committees')
 
     def __unicode__(self):
-        return u'{} {}'.format(self.slot_id, self._committee_id)
+        return u'slot-{}:committee-{}'.format(self.slot_id, self._committee_id)
 
 ##########################################
 # Hansard related objects

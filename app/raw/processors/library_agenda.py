@@ -34,16 +34,21 @@ class LibraryAgendaProcessor(BaseProcessor):
         if len(item['links']) == 2:
             # If there are exactly two links, then one is English and the other Chinese
             if 'English' in item['links'][0][0]:
-                title_en, url_en = item['links'][0]
-                title_cn, url_cn = item['links'][1]
+                _, url_en = item['links'][0]
+                _, url_cn = item['links'][1]
+                
             else:
-                title_en, url_en = item['links'][1]
-                title_cn, url_cn = item['links'][0]
+                _, url_en = item['links'][1]
+                _, url_cn = item['links'][0]
+             
         else:
             en, cn = self._filter_links(item['links'])
-            title_en, url_en = en
-            title_cn, url_cn = cn
-
+            _, url_en = en
+            _, url_cn = cn
+            
+        title_en = item['title_en']
+        title_cn = item['title_cn']
+        
         # Finally, get the local file names
         local_en = self._get_local_filename(url_en, item)
         local_cn = self._get_local_filename(url_cn, item)
@@ -108,7 +113,7 @@ class LibraryAgendaProcessor(BaseProcessor):
         """
         res = []
         # Filter out titles with "Appendix", "Annex" and "fu jian"
-        # Sometimes there are (Internet) versions.  Not sure what these mean
+        # Sometimes there are (Internet) versions.  Not sure what they mean
         # Sometimes there are additional document with ID number beginning "CB"
         filters = [u'App', u'Annex', u'CB', u'Internet',
                    u'\u9644\u9304', u'\u9644\u4ef6', u'\u7db2\u4e0a\u7248']

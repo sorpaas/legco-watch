@@ -247,10 +247,11 @@ class ParsedPerson(TimestampMixin, BaseParsedModel):
 
 class MembershipManager(models.Manager):
     def get_active_on_date(self, query_date):
+        # Return True if a membership is active on a given query_date.
         return self.filter(start_date__lt=query_date, end_date__gt=query_date)
 
     def get_current(self):
-        # Finds memberships where end date is None
+        # Finds memberships where end date is None or later than today
         today = date.today()
         return self.filter(Q(start_date__lt=today), Q(end_date__gt=today) | Q(end_date=None))
 
@@ -326,6 +327,7 @@ class ParsedMembership(TimestampMixin, BaseParsedModel):
 
 class MembershipParser(object):
     # Container for parsing membership data in RawMember.service_e and service_c
+    # See create_from_raw() in MembershipManager for usage
     # We only care about the English, and we'll use that as the basis for translation into Chinese
     DATE_RE = r'(?P<start>\d+ \w+ \d+) - (?P<end>\d+ \w+ \d+)?'
     DETAIL_RE = r'^(?P<method>\w+) \((?P<position>.+)\)$$'
