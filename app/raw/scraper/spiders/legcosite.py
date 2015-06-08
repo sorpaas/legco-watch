@@ -17,7 +17,7 @@ class LegcoSiteSpider(Spider, HansardMixin):
         "http://www.legco.gov.hk/general/english/counmtg/cm0408.htm",           # 2004-2008
         "http://www.legco.gov.hk/general/english/counmtg/cm0004.htm",           # 2000-2004
         "http://www.legco.gov.hk/yr99-00/english/counmtg/general/counmtg.htm",  # 1998-2000
-        # These two entries have significantly different structure. 
+        # These two entries have significantly different structure.
 #        "http://www.legco.gov.hk/yr97-98/english/counmtg/general/yr9798.htm",   # 1997 - 1998 
 #        Not yet implemented
         "http://www.legco.gov.hk/yr97-98/english/former/lc_sitg.htm",           # 1858 - 1997

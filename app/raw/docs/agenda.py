@@ -27,8 +27,9 @@ COMMITTEE_STAGE_PATTERN_C = u'全體委員會審議階段'
 logger = logging.getLogger('legcowatch-docs')
 QUESTION_PATTERN_E = ur'^\*?([0-9]+)\..*?Hon\s(.*?)\sto ask:'
 QUESTION_PATTERN_C = ur'^\*?([0-9]+)\.\s*(.*?)議員問:'
-# Note: The first question on 2014.11.20 does not have a number at start, which caused processor to fail.
-# Since this seldom occurs, we may consider overriding those particular entries.
+# Note: The first (urgent) question on 2014.11.20 does not have a number at start, which caused processor to fail.
+# This is a bug which occurs when a single urgent question presents, and messed up question index following.
+# Since this seldom occurs, we may consider fixing or overriding those particular entries.
 LEGISLATION_E = u'Subsidiary Legislation'
 LEGISLATION_C = u'附屬法例'
 OTHER_PAPERS_E = u'Other Paper'

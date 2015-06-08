@@ -27,6 +27,7 @@ class TimestampMixin(object):
 
 class BaseParsedManager(models.Manager):
     def create_from_raw(self, raw_obj):
+        # Create a parsed model from its corresponding raw one, but not saving
         if getattr(self, 'excluded', None) is not None:
             excluded = copy(self.excluded)
         else:
@@ -34,7 +35,7 @@ class BaseParsedManager(models.Manager):
         # copy fields directly without any processing
         try:
             obj = self.get(uid=raw_obj.uid)
-        except self.model.DoesNotExist as e:
+        except self.model.DoesNotExist:
             obj = self.model()
         for field in [xx.name for xx in obj._meta.fields]:
             if field not in excluded:
@@ -103,7 +104,7 @@ class OverrideManager(models.Manager):
         ref_uid = reference.uid
         try:
             return self.get(ref_model=model, ref_uid=ref_uid)
-        except self.model.DoesNotExist as e:
+        except self.model.DoesNotExist:
             return None
 
     def get_or_create_from_reference(self, reference):
@@ -155,7 +156,7 @@ class Override(models.Model):
         model = self._get_model()
         try:
             instance = model.objects.get(id=self.ref_uid)
-        except model.DoesNotExist as e:
+        except model.DoesNotExist:
             logger.warn('Instance of {} with id {} does not exist'.format(self.ref_model, self.ref_uid))
             return None
         return instance
@@ -176,12 +177,14 @@ class Override(models.Model):
         payload = self.get_payload()
         return payload.get('deactivate', False)
 
-
+"""
+Person
+"""
 class PersonManager(models.Manager):
     def create_from_raw(self, raw_obj):
         try:
             obj = self.get(uid=raw_obj.uid)
-        except self.model.DoesNotExist as e:
+        except self.model.DoesNotExist:
             obj = self.model()
         # Copy items over, but a few fields require special handling
         excluded = ['education_e', 'education_c', 'occupation_e', 'occupation_c']
@@ -215,9 +218,10 @@ class ParsedPerson(TimestampMixin, BaseParsedModel):
     place_of_birth = models.CharField(max_length=50, blank=True, default='')
     homepage = models.TextField(blank=True, default='')
     photo_file = models.TextField(blank=True, default='')
-
+    
+    #Relationships
     committees = models.ManyToManyField('ParsedCommittee', through='ParsedCommitteeMembership')
-
+    #what to do with service membership?
     objects = PersonManager()
 
     not_overridable = ['photo_file']
@@ -259,7 +263,7 @@ class MembershipManager(models.Manager):
             # Get or create
             try:
                 obj = self.get(uid=uid)
-            except self.model.DoesNotExist as e:
+            except self.model.DoesNotExist:
                 obj = self.model()
 
             # Copy data over
@@ -445,7 +449,7 @@ class CouncilMeetingManager(BaseParsedManager):
         new_uid = u'cmeeting-{:%Y%m%d}'.format(raw_obj.start_date)
         try:
             obj = self.get(uid=new_uid)
-        except self.model.DoesNotExist as e:
+        except self.model.DoesNotExist:
             obj = self.model()
 
         obj.uid = new_uid
@@ -459,7 +463,7 @@ class CouncilMeetingManager(BaseParsedManager):
         new_uid = u'cmeeting-{:%Y%m%d}'.format(raw_obj.start_date)
         try:
             return self.get(uid=new_uid)
-        except self.model.DoesNotExist as e:
+        except self.model.DoesNotExist:
             return None
 
 
@@ -485,6 +489,8 @@ class ParsedCouncilMeeting(TimestampMixin, BaseParsedModel):
 
 
 class QuestionManager(BaseParsedManager):
+    excluded = []
+    
     def create_from_raw(self, raw_obj):
         pass
 
@@ -580,7 +586,7 @@ class QuestionManager(BaseParsedManager):
             q_uid = ParsedQuestion.generate_uid(meeting, raw_question.number, raw_question.is_urgent)
             try:
                 obj = self.get(uid=q_uid)
-            except self.model.DoesNotExist as e:
+            except self.model.DoesNotExist:
                 obj = self.model(uid=q_uid)
 
             obj.meeting = meeting
@@ -637,7 +643,8 @@ class ParsedQuestion(TimestampMixin, BaseParsedModel):
     reply_c = models.TextField(default='')
 
     objects = QuestionManager()
-
+    RAW_MODEL = RawCouncilQuestion
+    
     class Meta:
         app_label = 'raw'
         ordering = ['number']

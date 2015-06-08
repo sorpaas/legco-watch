@@ -49,15 +49,10 @@
       <li>
       {{ q.date }} -
         {% if q.subject_link != '' %}
-        <a href="{{ q.subject_link }}">
-          {{ q.subject }}
-        </a>
-      {% else %}
-        {{ q.subject }}
-      {% endif %}
-      {% if q.reply_link != '' %}
-        - <a href="{{ q.reply_link }}">reply</a></a>
-      {% endif %}
+        	<a href="{% url 'raw_question_uid' slug=q.uid %}"> {{ q.subject }} </a>
+      	{% else %}
+        	Error: Cannot find this question in database
+      	{% endif %}
       </li>
     {% endfor %}
     </ul>

@@ -60,7 +60,7 @@ class RawCouncilAgenda(RawModel):
     """
     Storage of Scrapy items relating to LegCo agenda items
 
-    Should be from the Library Site: http://library.legco.gov.hk:1080/search~S10?/tAgenda+for+the+meeting+of+the+Legislative+Council/tagenda+for+the+meeting+of+the+legislative+council/1%2C670%2C670%2CB/browse
+    Should come from the Library Site: http://library.legco.gov.hk:1080/search~S10?/tAgenda+for+the+meeting+of+the+Legislative+Council/tagenda+for+the+meeting+of+the+legislative+council/1%2C670%2C670%2CB/browse
     """
     # Title of the document.  Should be "Agenda of the meeting of the Legislative Council, <date>"
     title = models.CharField(max_length=255, blank=True)
@@ -135,7 +135,7 @@ class RawCouncilVoteResult(RawModel):
     Sources can be http://www.legco.gov.hk/general/english/open-legco/cm-201314.html or
     http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1314.htm
     """
-    # Some meetings span two days, which is why the raw date is a string
+    # Some meetings span more than one day, which is why the raw date is a string
     raw_date = models.CharField(max_length=50, blank=True)
     # URL to the XML file
     xml_url = models.URLField(null=True, blank=True)
@@ -145,20 +145,7 @@ class RawCouncilVoteResult(RawModel):
     pdf_url = models.URLField(null=True, blank=True)
     # local filename of the saved PDF in the scrapy folder
     pdf_filename = models.CharField(max_length=255, blank=True)
-
-
-class RawCouncilHansard(RawModel):
-    """
-    Storage of LegCo hansard documents
-    Sources can be Library: http://library.legco.gov.hk:1080/search~S10?/tHong+Kong+Hansard/thong+kong+hansard/1%2C3690%2C3697%2CB/browse
-    or http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1314.htm
-    """
-    title = models.CharField(max_length=255, blank=True)
-    paper_number = models.CharField(max_length=50, blank=True)
-    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
-    url = models.URLField(blank=True)
-    local_filename = models.CharField(max_length=255, blank=True)
-
+    
 
 class RawMember(RawModel):
     name_e = models.CharField(max_length=100, blank=True)
@@ -229,6 +216,7 @@ class RawCouncilQuestion(RawModel):
     """
     Storage for Members' questions, from http://www.legco.gov.hk/yr13-14/english/counmtg/question/ques1314.htm#toptbl
     """
+    #format: d.m.yyyy
     raw_date = models.CharField(max_length=50, blank=True)
     # Q. 5 <br> (Oral), for example
     number_and_type = models.CharField(max_length=255, blank=True)
@@ -379,6 +367,7 @@ class RawCouncilQuestion(RawModel):
             f.write(self.get_source().encode('utf-8'))
     #####End added by Long#####
 
+
 class RawScheduleMember(RawModel):
     """
     Member records from the Schedule API
@@ -484,50 +473,54 @@ class RawMeetingCommittee(RawModel):
 # Hansard related objects
 
 ##########################################
-
-class RawHansardAgenda(RawModel):
+class RawCouncilHansard(RawModel):
+    """
+    Storage of LegCo hansard documents
+    Sources can be Library: http://library.legco.gov.hk:1080/search~S10?/tHong+Kong+Hansard/thong+kong+hansard/1%2C3690%2C3697%2CB/browse
+    or http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1314.htm
+    """
+    #title = models.CharField(max_length=255, blank=True)
+    #paper_number = models.CharField(max_length=50, blank=True)
+    raw_date = models.CharField(max_length=100, blank=True)
+    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
+    url = models.URLField(blank=True)
+    local_filename = models.CharField(max_length=255, blank=True)
+    
+    class Meta:
+        abstract = True
+        app_label = 'raw'
+        
+        
+class RawHansardAgenda(RawCouncilHansard):
     #raw_date is a date in format yyyy-mm-dd
     #whereas raw_date_str is the "date" field, usually for debug now
     #but can be used to group the agenda+minutes+record(s) in future
     #since items of the same meeting should have a same and unique raw_date_str
-    raw_date = models.CharField(max_length=100, blank=True)
-    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
-    local_filename = models.CharField(max_length=255, blank=True)
-    # The URL link to the document
-    url = models.URLField(blank=True)
     
     UID_PREFIX = 'hansard_agenda'
     
     def __unicode__(self):
         return unicode(self.uid)
 
-class RawHansardMinutes(RawModel):
-    raw_date = models.CharField(max_length=100, blank=True)
-    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
-    local_filename = models.CharField(max_length=255, blank=True)
-    url = models.URLField(blank=True)
+
+class RawHansardMinutes(RawCouncilHansard):
     
     UID_PREFIX = 'hansard_minutes'
+    
     def __unicode__(self):
         return unicode(self.uid)
     
+    
 # Use 2 models for Hansard Records, since they may need different parsers
-class RawHansardFormalRecord(RawModel):
-    raw_date = models.CharField(max_length=100, blank=True)# may span over 1 day
-    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES) #Floor versions contains 2 languages
-    local_filename = models.CharField(max_length=255, blank=True)
-    url = models.URLField(blank=True)
+class RawHansardFormalRecord(RawCouncilHansard):
     
     UID_PREFIX = 'hansard_formal'
     
     def __unicode__(self):
         return unicode(self.uid)
 
-class RawHansardFloorRecord(RawModel):
-    raw_date = models.CharField(max_length=100, blank=True)# may span over 1 day
-    local_filename = models.CharField(max_length=255, blank=True)
-    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
-    url = models.URLField(blank=True)
+
+class RawHansardFloorRecord(RawCouncilHansard):
     
     UID_PREFIX = 'hansard_floor'
     
