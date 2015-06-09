@@ -15,7 +15,8 @@ from constants import GENDER_CHOICES, LANG_EN
 from .raw import RawMember, RawCommittee, RawCommitteeMembership, RawCouncilAgenda, RawCouncilQuestion
 from ..names import MemberName, NameMatcher
 from ..docs.agenda import logger as agenda_logger
-
+from ..docs.question import logger as question_logger
+from ..docs.question import CouncilQuestion
 
 logger = logging.getLogger('legcowatch')
 
@@ -67,7 +68,7 @@ class BaseParsedManager(models.Manager):
                 logger.warning(e)
         logger.info('Populated {} objects'.format(count))
         self._reactivate_db_debug()
-
+        
 
 class BaseParsedModel(models.Model):
     # We don't constrain UIDs to be unique, because we may have duplicates in the raw data that we want
@@ -81,8 +82,8 @@ class BaseParsedModel(models.Model):
 
     class Meta:
         abstract = True
-        app_label = 'raw'
-
+        app_label = 'raw'   
+    
     def get_overridable_fields(self):
         # First we get the fields for the model
         # if the model has `not_overridable`, then we exclude it from the list
@@ -491,12 +492,105 @@ class ParsedCouncilMeeting(TimestampMixin, BaseParsedModel):
 
 
 class QuestionManager(BaseParsedManager):
-    excluded = []
     
     def create_from_raw(self, raw_obj):
-        pass
-
+        # We assume raw_obj is in English
+        
+        #obj = ParsedQuestion()
+        # we can get a lot of info from raw uid
+        raw_uid = raw_obj.uid
+        date_str = raw_uid.split('-')[1]
+        
+        # locate the council meeting/agenda in which this question appears
+        meeting_uid = u'cmeeting-{}'.format(date_str)
+        try:
+            meeting = ParsedCouncilMeeting.objects.get(uid=meeting_uid)
+        except ParsedCouncilMeeting.DoesNotExist:
+            # Sometimes a meeting is cancelled or delayed - in this case we can ignore this question
+            # e.g. 2013.05.15
+            logger.warn(u'Cannot find a meeting for question:{} - required meeting uid: {}'.format(raw_uid,date_str))
+            return None #because we cannot generate a uid
+        if meeting is not None:
+            # Make a uid
+            new_uid = ParsedQuestion.generate_uid(meeting, raw_obj.number, raw_obj.is_urgent)
+            # Get or create
+            try:
+                obj = ParsedQuestion.objects.get(uid=new_uid)
+            except ParsedQuestion.DoesNotExist:
+                obj = ParsedQuestion()
+                obj.uid = new_uid
+        
+        obj.meeting = meeting
+            
+        # Match the number of question
+        obj.number = raw_obj.number
+        # Urgent?
+        obj.urgent = raw_obj.is_urgent
+        # Oral or written
+        obj.question_type = ParsedQuestion.ORAL if raw_obj.is_oral else ParsedQuestion.WRITTEN
+        # Asker
+        if raw_obj.asker is not None: 
+            #raw_obj.asker is already a foreign key, and member uid does not change from raw to parsed
+            person = ParsedPerson.objects.get(uid=raw_obj.asker.uid)
+        else:
+            # Sometimes the NameMatcher does not work, so no asker FK was stored in model
+            # we can try our luck in other language
+            q_otherlang = raw_obj.get_lang_counterpart()
+            if q_otherlang.asker is not None:
+                person = ParsedPerson.objects.get(uid=q_otherlang.asker.uid)    
+        if 'person' in locals():
+            if person is not None:
+                obj.asker = person
+        else:
+            logger.warn('Cannot find asker for question {} with name "{}"'.format(raw_obj.uid,raw_obj.asker))
+        
+        # Need to use question parser from here on
+        # Need both languages
+        uid_cn = raw_obj.uid[:-1] + u'c'
+        q_parser_en = raw_obj.get_parser()
+        q_parser_cn = RawCouncilQuestion.objects.get_by_uid(uid_cn).get_parser()
+        # sometimes (rarely) parser returns a NoneType
+        if q_parser_en and q_parser_cn:
+            # Replier(s)
+            obj.repliers_e = q_parser_en.repliers
+            obj.repliers_c = q_parser_cn.repliers
+            # Question subject
+            obj.ask_subject_e = q_parser_en.subject
+            obj.ask_subject_c = q_parser_cn.subject
+            # Reply subject
+            obj.reply_subject_e = q_parser_en.question_title
+            obj.reply_subject_c = q_parser_cn.question_title
+            # Question body
+            obj.body_e = q_parser_en.question_content
+            obj.body_c = q_parser_cn.question_content
+            # Reply body
+            obj.reply_e = q_parser_en.reply_content
+            obj.reply_c = q_parser_cn.reply_content
+        
+        return obj
+        
     def populate(self, dry_run=False):
+        self._deactivate_db_debug()
+        question_logger.deactivate = False
+        # use English version as base, fill in Chinese info later
+        en_questions = RawCouncilQuestion.objects.filter(uid__endswith=u'e').order_by('raw_date')
+        count = 0
+        for raw_question in en_questions:
+            # Get or create, but without commit
+            obj = self.create_from_raw(raw_question)
+            if obj is not None:
+                try:
+                    obj.save()
+                    count += 1
+                except IntegrityError as e:
+                    logger.warning(u'Could not create from {}'.format(raw_question))
+                    logger.warning(e)
+        logger.info('Populated {} questions'.format(count))
+        question_logger.deactivate = True
+        self._reactivate_db_debug()
+        
+        
+        ################ Depreciated - we parsed the Q&A from web page ##################
         """
         Create ParsedQuestions.  Strategy is to start with all RawCouncilQuestions, get the basic information from there,
         then cross reference against the CouncilAgenda for that date.
@@ -504,120 +598,120 @@ class QuestionManager(BaseParsedManager):
         Since CouncilAgenda parsing is not perfect, will probably result in a lot of missing cross references.  In these
         cases, we just don't populate the question's body.
         """
-        self._deactivate_db_debug()
-        # Deactivate the agenda logging
-        agenda_logger.deactivate = True
-        parser_cache = OrderedDict()
-        all_questions = RawCouncilQuestion.objects.order_by('raw_date').all()
-        name_matcher_e = ParsedPerson.get_matcher()
-        name_matcher_c = ParsedPerson.get_matcher(False)
-        count = 0
-        skipped = 0
-        incomplete = 0
-        for raw_question in all_questions:
-            # Get the agenda
-            agenda = raw_question.get_agenda()
-            if agenda is None:
-                logger.warn(u'Could not find agenda ({}).'.format(agenda))
-                skipped += 1
-                continue
-
-            meeting = ParsedCouncilMeeting.objects.get_from_raw(agenda)
-            if meeting is None:
-                logger.warn(u'Could not find meeting ({}).'.format(meeting, agenda))
-                skipped += 1
-                continue
-
-            # Get the parser and cache it
-            if agenda.uid in parser_cache:
-                parser = parser_cache[agenda.uid]
-            else:
-                parser = agenda.get_parser()
-                parser_cache[agenda.uid] = parser
-
-            # Now try to find the question in the parser
-            # CouncilAgenda's can't yet tell if a question is urgent or not, so we check against the asker
-            if parser is not None:
-                agenda_question = raw_question.get_matching_question_from_parser(parser)
-            else:
-                agenda_question = None
-
-            # if we couldn't find it, then log it
-            if agenda_question is None:
-                logger.warn(u'Could not find corresponding Agenda question for {}'.format(raw_question))
-                incomplete += 1
-
-            # Check that the names on the askers match, then get the ParsedPerson object that we'll attach to the question
-            is_english = raw_question.language == LANG_EN
-            agenda_name = None
-            raw_name = None
-            if raw_question.asker is not None:
-                raw_name = raw_question.asker.get_name_object(is_english)
-            if agenda_question is not None and agenda_question.asker is not None:
-                agenda_name = MemberName(agenda_question.asker)
-
-            asker = None
-            if raw_name is not None:
-                if agenda_name is not None:
-                    if agenda_name != raw_name:
-                        logger.warn(u"Askers don't match on question {}.  Agenda: {} Raw: {}".format(
-                            force_unicode(raw_question), force_unicode(agenda_name), force_unicode(raw_name)))
-                # Either way, we use the raw_question's asker
-                asker = ParsedPerson.objects.get(uid=raw_question.asker.uid)
-            else:
-                if agenda_name is not None:
-                    # Try to find a name match based on the agenda name
-                    matcher = name_matcher_e if is_english else name_matcher_c
-                    match = matcher.match(agenda_name)
-                    if match is not None:
-                        asker = match[1]
-                else:
-                    asker = None
-
-            # Can't find an asker, abort the creation
-            if asker is None:
-                logger.warn(u'Could not find an asker for the question {}'.format(raw_question))
-                skipped += 1
-                continue
-
-            # Check some other fields to see if they match, for diagnostic purposes
-            if agenda_question is not None:
-                raw_question.validate_question(agenda_question)
-
-            # Create the ParsedQuestion object and populate the fields
-            q_uid = ParsedQuestion.generate_uid(meeting, raw_question.number, raw_question.is_urgent)
-            try:
-                obj = self.get(uid=q_uid)
-            except self.model.DoesNotExist:
-                obj = self.model(uid=q_uid)
-
-            obj.meeting = meeting
-            obj.number = raw_question.number
-            obj.urgent = raw_question.is_urgent
-            obj.question_type = ParsedQuestion.ORAL if raw_question.is_oral else ParsedQuestion.WRITTEN
-            obj.asker = asker
-            if is_english:
-                if agenda_question is not None:
-                    # Only keep the English replier
-                    obj.replier = agenda_question.replier or u''
-                    obj.body_e = agenda_question.body
-                obj.subject_e = raw_question.subject
-            else:
-                if agenda_question is not None:
-                    obj.body_c = agenda_question.body
-                obj.subject_c = raw_question.subject
-            count += 1
-            if not dry_run:
-                obj.save()
-
-            # Prune the parser cache so we don't keep all of the CouncilAgendas in memory
-            if len(parser_cache) > 10:
-                parser_cache.popitem(last=False)
-
-        logger.info(u'{} questions created, {} skipped, {} without body text'.format(count, skipped, incomplete))
-        agenda_logger.deactivate = False
-        self._reactivate_db_debug()
-
+#         self._deactivate_db_debug()
+#         # Deactivate the agenda logging
+#         agenda_logger.deactivate = True
+#         parser_cache = OrderedDict()
+#         all_questions = RawCouncilQuestion.objects.order_by('raw_date').all()
+#         name_matcher_e = ParsedPerson.get_matcher()
+#         name_matcher_c = ParsedPerson.get_matcher(False)
+#         count = 0
+#         skipped = 0
+#         incomplete = 0
+#         for raw_question in all_questions:
+#             # Get the agenda
+#             agenda = raw_question.get_agenda()
+#             if agenda is None:
+#                 logger.warn(u'Could not find agenda ({}).'.format(agenda))
+#                 skipped += 1
+#                 continue
+#  
+#             meeting = ParsedCouncilMeeting.objects.get_from_raw(agenda)
+#             if meeting is None:
+#                 logger.warn(u'Could not find meeting ({}).'.format(meeting, agenda))
+#                 skipped += 1
+#                 continue
+# 
+#             # Get the parser and cache it
+#             if agenda.uid in parser_cache:
+#                 parser = parser_cache[agenda.uid]
+#             else:
+#                 parser = agenda.get_parser()
+#                 parser_cache[agenda.uid] = parser
+# 
+#             # Now try to find the question in the parser
+#             # CouncilAgenda's can't yet tell if a question is urgent or not, so we check against the asker
+#             if parser is not None:
+#                 agenda_question = raw_question.get_matching_question_from_parser(parser)
+#             else:
+#                 agenda_question = None
+# 
+#             # if we couldn't find it, then log it
+#             if agenda_question is None:
+#                 logger.warn(u'Could not find corresponding Agenda question for {}'.format(raw_question))
+#                 incomplete += 1
+# 
+#             # Check that the names on the askers match, then get the ParsedPerson object that we'll attach to the question
+#             is_english = raw_question.language == LANG_EN
+#             agenda_name = None
+#             raw_name = None
+#             if raw_question.asker is not None:
+#                 raw_name = raw_question.asker.get_name_object(is_english)
+#             if agenda_question is not None and agenda_question.asker is not None:
+#                 agenda_name = MemberName(agenda_question.asker)
+# 
+#             asker = None
+#             if raw_name is not None:
+#                 if agenda_name is not None:
+#                     if agenda_name != raw_name:
+#                         logger.warn(u"Askers don't match on question {}.  Agenda: {} Raw: {}".format(
+#                             force_unicode(raw_question), force_unicode(agenda_name), force_unicode(raw_name)))
+#                 # Either way, we use the raw_question's asker
+#                 asker = ParsedPerson.objects.get(uid=raw_question.asker.uid)
+#             else:
+#                 if agenda_name is not None:
+#                     # Try to find a name match based on the agenda name
+#                     matcher = name_matcher_e if is_english else name_matcher_c
+#                     match = matcher.match(agenda_name)
+#                     if match is not None:
+#                         asker = match[1]
+#                 else:
+#                     asker = None
+# 
+#             # Can't find an asker, abort the creation
+#             if asker is None:
+#                 logger.warn(u'Could not find an asker for the question {}'.format(raw_question))
+#                 skipped += 1
+#                 continue
+# 
+#             # Check some other fields to see if they match, for diagnostic purposes
+#             if agenda_question is not None:
+#                 raw_question.validate_question(agenda_question)
+# 
+#             # Create the ParsedQuestion object and populate the fields
+#             q_uid = ParsedQuestion.generate_uid(meeting, raw_question.number, raw_question.is_urgent)
+#             try:
+#                 obj = self.get(uid=q_uid)
+#             except self.model.DoesNotExist:
+#                 obj = self.model(uid=q_uid)
+# 
+#             obj.meeting = meeting
+#             obj.number = raw_question.number
+#             obj.urgent = raw_question.is_urgent
+#             obj.question_type = ParsedQuestion.ORAL if raw_question.is_oral else ParsedQuestion.WRITTEN
+#             obj.asker = asker
+#             if is_english:
+#                 if agenda_question is not None:
+#                     # Only keep the English replier
+#                     obj.replier = agenda_question.replier or u''
+#                     obj.body_e = agenda_question.body
+#                 obj.subject_e = raw_question.subject
+#             else:
+#                 if agenda_question is not None:
+#                     obj.body_c = agenda_question.body
+#                 obj.subject_c = raw_question.subject
+#             count += 1
+#             if not dry_run:
+#                 obj.save()
+# 
+#             # Prune the parser cache so we don't keep all of the CouncilAgendas in memory
+#             if len(parser_cache) > 10:
+#                 parser_cache.popitem(last=False)
+# 
+#         logger.info(u'{} questions created, {} skipped, {} without body text'.format(count, skipped, incomplete))
+#         agenda_logger.deactivate = False
+#         self._reactivate_db_debug()
+        
 
 class ParsedQuestion(TimestampMixin, BaseParsedModel):
     """
@@ -632,27 +726,30 @@ class ParsedQuestion(TimestampMixin, BaseParsedModel):
     meeting = models.ForeignKey(ParsedCouncilMeeting, related_name='questions')
     number = models.IntegerField()
     urgent = models.BooleanField(default=False)
-    question_type = models.IntegerField(choices=QTYPES)
-    asker = models.ForeignKey(ParsedPerson, related_name='questions')
-    # A secretary of the government.  Only keep the English
-    replier = models.TextField(default='')
+    question_type = models.IntegerField(choices=QTYPES,blank=True,default=None)
+    asker = models.ForeignKey(ParsedPerson, related_name='questions', blank=True, default=None)
+    # Secretary (or Secretaries) of the government
+    repliers_e = models.TextField(default='',blank=True)
+    repliers_c = models.TextField(default='',blank=True)
     # Actual content of the question
-    subject_e = models.TextField(default='')
-    subject_c = models.TextField(default='')
-    body_e = models.TextField(default='')
-    body_c = models.TextField(default='')
-    reply_e = models.TextField(default='')
-    reply_c = models.TextField(default='')
+    ask_subject_e = models.TextField(default='',blank=True)
+    ask_subject_c = models.TextField(default='',blank=True)
+    body_e = models.TextField(default='',blank=True)
+    body_c = models.TextField(default='',blank=True)
+    reply_subject_e = models.TextField(default='',blank=True)
+    reply_subject_c = models.TextField(default='',blank=True)
+    reply_e = models.TextField(default='',blank=True)
+    reply_c = models.TextField(default='',blank=True)
 
     objects = QuestionManager()
     RAW_MODEL = RawCouncilQuestion
     
     class Meta:
         app_label = 'raw'
-        ordering = ['number']
+        ordering = ['meeting']
 
     def __unicode__(self):
-        return u'Q{} - {}'.format(self.number, self.subject_e)
+        return u'{} - Q{} - {}'.format(self.meeting, self.number, self.ask_subject_e)
 
     @classmethod
     def generate_uid(cls, meeting, number, is_urgent):

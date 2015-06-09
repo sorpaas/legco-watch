@@ -46,12 +46,12 @@ class CouncilQuestion(object):
         self.date = date
         self.urgent = urgent
         self.oral = oral
-        self.subject = subject
+        self.subject = subject ### this is the title used by asker
         self.link = link
         
         self.tree = None
         self.tree_content = None
-        self.question_title = None
+        self.question_title = None ### although so named, this is actually the title from replier(s)
         #self.question_number =None
         self.question_content = None
         self.asker = None
@@ -119,7 +119,7 @@ class CouncilQuestion(object):
             self.tree = None
         
     def _parse(self):
-        #only the pressrelease part is needed
+        #only the 'pressrelease' part is needed
         try:
             main_tree = self.tree.xpath('id("pressrelease")')[0]
         except IndexError:
@@ -201,7 +201,7 @@ class CouncilQuestion(object):
             asker_re_e=[]
             asker_re_c=[]
             if self.urgent:
-                asker_re_e.append(ur'(?s)(.*) by (?P<asker>.*?)(\son.*?)? under (.*) (reply|answer)(\son.+)? by (?P<repliers>.+)(in|at) the Legislative Council')
+                asker_re_e.append(ur'(?s)(.*) by (?P<asker>.*?) (\son.*?)?under (.*) (reply|answer)(\son.+)? by (?P<repliers>.+)(in|at) the Legislative Council')
                 asker_re_e.append(ur'(?s)(.*) (reply|answer) (by|of) (?P<repliers>.+) to a question by (?P<asker>.*?)(\son.*?)? under (.*) (in|at) the Legislative Council')
                 asker_re_e.append(ur'(?s)(.*) (reply|answer) (by|of) (?P<repliers>.+) to (a|an)(\s.*)? question by (?P<asker>.*?)(\son.*?)? under (.*) (in|at) the Legislative Council')
                 #sometimes a normal pattern is used for urgent question
@@ -249,6 +249,7 @@ class CouncilQuestion(object):
                     self.repliers = self.repliers.strip()
                     if self.repliers[-1]==',' or self.repliers[-1]==u'的':
                         self.repliers = self.repliers[:-1]
+                    break
             
             #postprocessing
             if self.asker:
@@ -279,6 +280,7 @@ class CouncilQuestion(object):
             if match_q_content:
                 self.question_content = match_q_content.group('q_content')
                 break
+            
         if match_q_content:
             if self.question_content[-6:]=='Madam ':
                 self.question_content=self.question_content[:-6]

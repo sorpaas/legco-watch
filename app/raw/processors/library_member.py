@@ -80,6 +80,11 @@ class LibraryMemberProcessor(BaseProcessor):
             target = u'{}_{}'.format(k, lang)
             val = item.get(k, None)
             if val is not None:
+                # in some cases, the name field contains double-space '  ' instead of ' '
+                # which fails the NameMatcher later on
+                # e.g. 'LEE  Wing-tat' instead of desired 'LEE Wing-tat'
+                # since we cannot modify the web page, we replace it here
+                val = val.replace(u'  ',u' ')
                 setattr(obj, target, val.strip())
 
         json_objects_to_copy = [u'service', u'education', u'occupation']

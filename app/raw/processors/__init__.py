@@ -31,7 +31,6 @@ def get_processor_for_spider(spider):
 PROCESS_MAP = OrderedDict([
     ('library_agenda', LibraryAgendaProcessor),
     ('library_member', LibraryMemberProcessor),
-    ('council_hansard', HansardObjectProcessor),
     # The below processors should be run in this order
     ('schedule_member', ScheduleMemberProcessor),
     ('schedule_committee', ScheduleCommitteeProcessor),
@@ -39,8 +38,8 @@ PROCESS_MAP = OrderedDict([
     ('schedule_meeting_committee', ScheduleMeetingCommitteeProcessor),
     ('schedule_meeting', ScheduleMeetingProcessor),
     ('council_question', QuestionProcessor),
-    ('council_question_old', QuestionProcessor),#not implemented
-    
+    #('council_question_old', QuestionProcessor),#not implemented
+    ('council_hansard', HansardObjectProcessor), 
 ])
 
 

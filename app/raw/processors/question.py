@@ -70,28 +70,54 @@ class QuestionProcessor(BaseProcessor):
                     matcher = matcher_en
 
                 # Try to find the RawMember object that matches the asker
+                # There will still be some askers not matched - we will use parser to fix them soon
                 raw_name = item['asker']
+                # Some postprocessing
+                # Get rid of 'Hon', '議員' and ''
+                raw_name = raw_name.replace(u'Hon',u'')
+                raw_name = raw_name.replace(u'議員',u'')
+                
+                # Get rid of heading and tailing spaces
+                if raw_name[0]==u' ':
+                    raw_name = raw_name[1:]
+                if raw_name[-1]==u' ':
+                    raw_name = raw_name[:-1]
+                
+                # Try to match the name with RawMember
                 name = MemberName(raw_name)
                 match = matcher.match(name)
                 if match is not None:
                     member = match[1]
                     obj.asker = member
+                else:
+                    pass
+                    #logger.warn(u'Cannot match asker "{}" with members in database'.format(raw_name))
                     
                 # Get the local path of reply content
                 try:
                     obj.local_filename = item['files'][0]['path']
                 except IndexError:
+                    obj.local_filename = None
                     logger.warn(u'Could not get local path for question {} from date {}'.format(item['number_and_type'], item['date']))
                 
-                # Finally save
-                obj.save()
+                # Sometimes the reply link is not available yet,
+                # and sometimes the meeting was cancelled or deferred
+                # In these cases, forget about them.
+                if obj.local_filename is not None:
+                    obj.save()
+                
             except (KeyError, RuntimeError) as e:
                 self._count_error += 1
                 logger.warn(u'Could not process question {} from date {}'.format(item['number_and_type'], item['date']))
                 logger.warn(unicode(e))
                 continue
-        logger.info("{} items processed, {} created, {} updated, {} errors".format(counter, self._count_created, self._count_updated, self._count_error))
-    
+        #After saving all items, use parser to fix missing askers
+        no_asker_list = RawCouncilQuestion.fix_asker_by_parser()
+        
+        logger.info(u"{} items processed, {} created, {} updated, {} errors, {} questions without asker".format(counter, self._count_created, self._count_updated, self._count_error, len(no_asker_list)))
+        #for debugging
+        print(no_asker_list)
+        
     def _generate_uid(self, item):
         """
         UIDs for questions are of the form 'question-09.10.2013-1-e' (question-<date>-<number>-<lang>)

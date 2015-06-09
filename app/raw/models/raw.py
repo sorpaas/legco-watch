@@ -175,9 +175,13 @@ class RawMember(RawModel):
     UID_PREFIX = 'member'
 
     not_overridable = ['service_e', 'service_c', 'photo_file']
-
+    
+    class Meta:
+        ordering = ['uid']
+        app_label = 'raw'
+        
     def __unicode__(self):
-        return u"{} {}".format(unicode(self.name_e), unicode(self.name_c))
+        return u"{} {} - {}".format(unicode(self.name_e), unicode(self.name_c), self.uid)
 
     def get_raw_schedule_member(self):
         """
@@ -235,7 +239,7 @@ class RawCouncilQuestion(RawModel):
     DATE_RE = ur'(?P<day>\d{1,2})\.(?P<mon>\d{1,2})\.(?P<year>\d{2,4})'
 
     class Meta:
-        ordering = ['-raw_date']
+        ordering = ['-uid']
         app_label = 'raw'
 
     def __unicode__(self):
@@ -269,6 +273,9 @@ class RawCouncilQuestion(RawModel):
         match = re.search(ur'\d+', self.number_and_type)
         if match is not None:
             return int(match.group())
+        elif self.is_urgent:
+            # the case for single urgent question
+            return 0
         else:
             return None
 
@@ -315,7 +322,7 @@ class RawCouncilQuestion(RawModel):
         if self.is_oral and agenda_question.type != AgendaQuestion.QTYPE_ORAL:
             logger.warn("u{} Question types don't match: {} vs {}".format(self.uid, u'Oral' if self.is_oral else u'Written', u'Oral' if agenda_question.type == AgendaQuestion.QTYPE_ORAL else u'Written'))
     
-    ##### added for new model- Long #####
+    ##### added for new model- lpounng #####
     def full_local_filename(self):
         if self.local_filename:
             return utils.get_file_path(self.local_filename)
@@ -351,7 +358,56 @@ class RawCouncilQuestion(RawModel):
             logger.warn(u'Could not parse question for {}'.format(self.uid))
             logger.warn(e)
             return None
-
+    
+    def get_lang_counterpart(self):
+        #Given a question instance, return the instance in another language
+        try:
+            if self.uid[-1]==u'e':
+                return RawCouncilQuestion.objects.get_by_uid(self.uid[:-1]+u'c')
+            elif self.uid[-1]==u'c':
+                return RawCouncilQuestion.objects.get_by_uid(self.uid[:-1]+u'e')   
+        except:
+            return None
+        
+    @classmethod
+    def fix_asker_by_parser(cls):
+        """
+        Loop over all questions without an asker FK, and attempt to use parser to fix it.
+        Returns a list of UIDs of questions still without an asker.
+        Advise to run this after saving questions with processor.
+        """
+        matcher_en = RawMember.get_matcher()
+        matcher_cn = RawMember.get_matcher(False)
+        raw_questions_without_asker = cls.objects.filter(asker=None)
+        no_asker_list = []
+        for q in raw_questions_without_asker:
+            parser = q.get_parser()
+            if parser is not None:
+                asker_str = parser.asker
+                matcher = matcher_en if q.uid[-1] == u'e' else matcher_cn
+                name = MemberName(asker_str)
+                match = matcher.match(name)
+                if match is not None:
+                    member = match[1]
+                    q.asker = member
+                    q.save()
+                else:
+                    # Try different language counterpart
+                    q_otherlang = q.get_lang_counterpart()
+                    parser = q_otherlang.get_parser()
+                    if parser is not None:
+                        asker_str = parser.asker
+                        matcher = matcher_en if q_otherlang.uid[-1] == u'e' else matcher_cn
+                        name = MemberName(asker_str)
+                        match = matcher.match(name)
+                        if match is not None:
+                            member = match[1]
+                            q.asker = member
+                            q.save()
+                        else:
+                            no_asker_list.append(q.uid)
+                            logger.warn(u'Cannot match asker {} for question {} with effort of parser.'.format(asker_str,q.uid))
+        return no_asker_list
     @classmethod
     def get_from_parser(cls, parser):
         """
@@ -365,7 +421,7 @@ class RawCouncilQuestion(RawModel):
         """
         with open('raw/tests/fixtures/{}.html'.format(self.uid), 'wb') as f:
             f.write(self.get_source().encode('utf-8'))
-    #####End added by Long#####
+    #####End added by lpounng#####
 
 
 class RawScheduleMember(RawModel):

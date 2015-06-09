@@ -49,3 +49,9 @@ DEFAULT_REQUEST_HEADERS = {
 
 HTTPCACHE_ENABLED = True
 HTTPCACHE_DIR = os.path.join(DATA_DIR_BASE, 'httpcache')
+
+# Always fetch the bleeding-edge webpage - no caching
+# see 'downloader-middleware' section of Scrapy for details
+# To re-enable caching, use 
+# HTTPCACHE_POLICY = 'scrapy.contrib.httpcache.DummyPolicy'
+HTTPCACHE_POLICY = 'scrapy.contrib.httpcache.RFC2616Policy'

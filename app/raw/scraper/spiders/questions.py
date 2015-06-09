@@ -68,7 +68,7 @@ class QuestionMixin(object):
                 count_sessions += 1
                 questions_table = elem.getnext()
                 for row in questions_table.xpath('./tr'):
-                    # We ignore the header row, which is indicated by ths
+                    # We ignore the header row, which is indicated by 'th'
                     if row[0].tag == 'th':
                         continue
                     this_question = self.make_question(language, response, row, this_date)
@@ -119,6 +119,8 @@ class QuestionSpider(QuestionMixin, Spider):
         }
         try:
             reply_link = row[3][0].get('href', None)
+            
+            
             # Some links have a '%20' at the end, some are pdf, 
             # and some rare cases missing .htm at the end
             reply_link = reply_link.replace('%20','')
