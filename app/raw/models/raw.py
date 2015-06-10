@@ -532,53 +532,18 @@ class RawMeetingCommittee(RawModel):
 class RawCouncilHansard(RawModel):
     """
     Storage of LegCo hansard documents
-    Sources can be Library: http://library.legco.gov.hk:1080/search~S10?/tHong+Kong+Hansard/thong+kong+hansard/1%2C3690%2C3697%2CB/browse
-    or http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1314.htm
+    Source is Library: http://library.legco.gov.hk:1080/search~S10?/tHong+Kong+Hansard/thong+kong+hansard/1%2C3690%2C3697%2CB/browse
     """
-    #title = models.CharField(max_length=255, blank=True)
-    #paper_number = models.CharField(max_length=50, blank=True)
+    title = models.CharField(max_length=255, blank=True)
     raw_date = models.CharField(max_length=100, blank=True)
     language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
     url = models.URLField(blank=True)
-    local_filename = models.CharField(max_length=255, blank=True)
+    # Sometimes due to bandwidth/connection, file may fail to be downloaded
+    local_filename = models.CharField(max_length=255, blank=True, null=True)
     
     class Meta:
-        abstract = True
+        ordering=['-uid']
         app_label = 'raw'
-        
-        
-class RawHansardAgenda(RawCouncilHansard):
-    #raw_date is a date in format yyyy-mm-dd
-    #whereas raw_date_str is the "date" field, usually for debug now
-    #but can be used to group the agenda+minutes+record(s) in future
-    #since items of the same meeting should have a same and unique raw_date_str
-    
-    UID_PREFIX = 'hansard_agenda'
     
     def __unicode__(self):
-        return unicode(self.uid)
-
-
-class RawHansardMinutes(RawCouncilHansard):
-    
-    UID_PREFIX = 'hansard_minutes'
-    
-    def __unicode__(self):
-        return unicode(self.uid)
-    
-    
-# Use 2 models for Hansard Records, since they may need different parsers
-class RawHansardFormalRecord(RawCouncilHansard):
-    
-    UID_PREFIX = 'hansard_formal'
-    
-    def __unicode__(self):
-        return unicode(self.uid)
-
-
-class RawHansardFloorRecord(RawCouncilHansard):
-    
-    UID_PREFIX = 'hansard_floor'
-    
-    def __unicode__(self):
-        return unicode(self.uid)
+        return u'{} - {}'.format(self.uid, self.title)

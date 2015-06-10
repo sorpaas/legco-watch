@@ -9,7 +9,7 @@ from raw.processors.library_member import LibraryMemberProcessor
 from raw.processors.question import QuestionProcessor
 from raw.processors.schedule import ScheduleMemberProcessor, ScheduleCommitteeProcessor, ScheduleMembershipProcessor, \
     ScheduleMeetingCommitteeProcessor, ScheduleMeetingProcessor
-from raw.processors.hansard import HansardObjectProcessor
+from raw.processors.library_hansard import LibraryHansardProcessor
 from django.conf import settings
 
 
@@ -39,7 +39,8 @@ PROCESS_MAP = OrderedDict([
     ('schedule_meeting', ScheduleMeetingProcessor),
     ('council_question', QuestionProcessor),
     #('council_question_old', QuestionProcessor),#not implemented
-    ('council_hansard', HansardObjectProcessor), 
+    #'council hansard' is depreciated
+    ('library_hansard', LibraryHansardProcessor), 
 ])
 
 

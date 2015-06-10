@@ -4,7 +4,7 @@ from raw.models import ScrapeJob, \
     RawMember, RawScheduleMember, \
     RawCommittee, RawCommitteeMembership, RawMeetingCommittee, RawMeeting, \
     RawCouncilQuestion, \
-    RawHansardAgenda, RawHansardMinutes, RawHansardFloorRecord, RawHansardFormalRecord
+    RawCouncilHansard
 from raw.models import ParsedPerson, ParsedMembership, ParsedCommittee, ParsedCommitteeMembership, \
     ParsedCouncilMeeting, ParsedQuestion
     
@@ -19,10 +19,8 @@ admin.site.register(RawCommitteeMembership)
 admin.site.register(RawMeetingCommittee)
 admin.site.register(RawMeeting)
 admin.site.register(RawCouncilQuestion)
-admin.site.register(RawHansardAgenda)
-admin.site.register(RawHansardMinutes)
-admin.site.register(RawHansardFloorRecord)
-admin.site.register(RawHansardFormalRecord)
+admin.site.register(RawCouncilHansard)
+
 
 admin.site.register(ParsedPerson)
 admin.site.register(ParsedMembership)

@@ -13,6 +13,7 @@ class BaseProcessor(object):
         self._count_created = 0
         self._count_updated = 0
         self._count_error = 0
+        self._count_warning = 0
 
     def process(self, *args, **kwargs):
         pass

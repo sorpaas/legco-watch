@@ -7,7 +7,14 @@ from raw.scraper.items import HansardAgenda, HansardMinutes, HansardRecord
 
 import urlparse
 import re
-
+##################################################
+###################Depreciated####################
+##################################################
+# It was found that the DOC version of hansards exist in the Library database.
+# Thus we will use 'legco_library' database to scrape them.
+# However, the note below is still useful, and worth reading if you want to know more
+# about LegCo hansard.
+##################################################
 """
 Brief explanation:
 e.g. http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1415.htm

@@ -2,6 +2,6 @@
 # -*- coding: utf-8 -*-
 
 """
-Document wrappers for LegCo Hansard Objects (agenda, minutes, floor and formal records)
+Document wrappers for LegCo Hansard (formal and floor)
 """
 
