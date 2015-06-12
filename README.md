@@ -1,6 +1,6 @@
 # LegCo Watch
 
-This project is no longer in active development.  Feel free to use its components for your own projects.
+This project is in active development.
 
 # Overview
 
