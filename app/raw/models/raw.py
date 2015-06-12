@@ -8,6 +8,7 @@ import re
 from .. import utils
 from ..docs.agenda import CouncilAgenda, AgendaQuestion
 from ..docs.question import CouncilQuestion
+from ..docs.hansard import CouncilHansard
 from ..names import NameMatcher, MemberName
 from constants import *
 
@@ -129,6 +130,77 @@ class RawCouncilAgenda(RawModel):
         return date(int(date_string[0:4]), int(date_string[4:6]), int(date_string[6:8]))
 
 
+class RawCouncilHansard(RawModel):
+    """
+    Storage of LegCo hansard documents
+    Source is Library- http://library.legco.gov.hk:1080/search~S10?/tHong+Kong+Hansard/thong+kong+hansard/1%2C3690%2C3697%2CB/browse
+    Library DB does not tell which hansards come from a meeting that spread over a few days.
+    We will use the raw_date field to match the date with agendas later (in parsed model perhaps).
+    """
+    title = models.CharField(max_length=255, blank=True)
+    raw_date = models.CharField(max_length=100, blank=True)
+    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
+    url = models.URLField(blank=True)
+    # Sometimes due to bandwidth/connection, file may fail to be downloaded
+    local_filename = models.CharField(max_length=255, blank=True, null=True)
+    
+    class Meta:
+        ordering=['-uid']
+        app_label = 'raw'
+    
+    def __unicode__(self):
+        return u'{} - {}'.format(self.uid, self.title)
+    
+    def full_local_filename(self):
+        return utils.get_file_path(self.local_filename)
+    
+    def get_source(self):
+        full_file = self.full_local_filename()
+        filetype = utils.check_file_type(full_file)
+        # most (if not all) are DOC
+        if filetype == utils.DOC:
+            src = utils.doc_to_html(full_file)
+        elif filetype == utils.DOCX:
+            src = utils.docx_to_html(full_file)
+        elif filetype == utils.PDF:
+            # Cannot handle PDF
+            src = None
+        else:
+            raise NotImplementedError(u"Unexpected filetype for uid {}".format(self.uid))
+        return src
+    
+    def get_parser(self):
+        """
+        Returns the parser for this RawCouncilansard object
+        """
+        src = self.get_source()
+        try:
+            return CouncilHansard(self.uid, src)
+        except BaseException as e:
+            logger.warn(u'Could not parse hansard for {}'.format(self.uid))
+            logger.warn(e)
+            return None
+    
+    @classmethod
+    def get_from_parser(cls, parser):
+        """
+        Get a model object from a CouncilHansard parser object
+        """
+        return cls.objects.get(uid=parser.uid)
+
+    def _dump_as_fixture(self):
+        """
+        Saves the raw html to a fixture for testing
+        """
+        with open('raw/tests/fixtures/{}.html'.format(self.uid), 'wb') as f:
+            f.write(self.get_source().encode('utf-8'))
+
+    @property
+    def meeting_date(self):
+        # Returns a datetime.date object of the day which this hansard is concerned
+        return date(int(self.raw_date[0:4]), int(self.raw_date[4:6]), int(self.raw_date[6:8]))
+    
+    
 class RawCouncilVoteResult(RawModel):
     """
     Storage of LegCo vote results
@@ -525,25 +597,3 @@ class RawMeetingCommittee(RawModel):
     def __unicode__(self):
         return u'slot-{}:committee-{}'.format(self.slot_id, self._committee_id)
 
-##########################################
-# Hansard related objects
-
-##########################################
-class RawCouncilHansard(RawModel):
-    """
-    Storage of LegCo hansard documents
-    Source is Library: http://library.legco.gov.hk:1080/search~S10?/tHong+Kong+Hansard/thong+kong+hansard/1%2C3690%2C3697%2CB/browse
-    """
-    title = models.CharField(max_length=255, blank=True)
-    raw_date = models.CharField(max_length=100, blank=True)
-    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
-    url = models.URLField(blank=True)
-    # Sometimes due to bandwidth/connection, file may fail to be downloaded
-    local_filename = models.CharField(max_length=255, blank=True, null=True)
-    
-    class Meta:
-        ordering=['-uid']
-        app_label = 'raw'
-    
-    def __unicode__(self):
-        return u'{} - {}'.format(self.uid, self.title)

@@ -8,6 +8,7 @@ Document wrappers for LegCo Agendas
 from collections import OrderedDict
 import logging
 import lxml
+import lxml.html
 from lxml import etree
 from lxml.html.clean import clean_html, Cleaner
 import re
@@ -15,8 +16,8 @@ from lxml.html import HTMLParser
 import itertools
 from raw.utils import to_string, to_unicode, grouper
 
-import lxml.html
 
+logger = logging.getLogger('legcowatch-docs')
 SECOND_READING_PATTERN_C = u'二讀'
 
 BILL_AMENDMENT_PATTERN_C = u'全體委員會審議階段修正案'
@@ -24,12 +25,13 @@ BILL_AMENDMENT_PATTERN_C = u'全體委員會審議階段修正案'
 FIRST_READING_PATTERN_C = u'首讀'
 
 COMMITTEE_STAGE_PATTERN_C = u'全體委員會審議階段'
-logger = logging.getLogger('legcowatch-docs')
+
 QUESTION_PATTERN_E = ur'^\*?([0-9]+)\..*?Hon\s(.*?)\sto ask:'
 QUESTION_PATTERN_C = ur'^\*?([0-9]+)\.\s*(.*?)議員問:'
 # Note: The first (urgent) question on 2014.11.20 does not have a number at start, causing processor to fail.
-# This is a bug which occurs when a single urgent question presents, and messed up question index following.
+# This is a bug which occurs when a single urgent question presents, and messes up question index following.
 # Since this seldom occurs, we may consider fixing or overriding those particular entries.
+
 LEGISLATION_E = u'Subsidiary Legislation'
 LEGISLATION_C = u'附屬法例'
 OTHER_PAPERS_E = u'Other Paper'
@@ -555,7 +557,7 @@ class AgendaQuestion(object):
             self.number = match.group(1)
             self.asker = match.group(2)
             # Get question type
-            # Can be oral or written.  Could also be urgent, in this case the heading will be 
+            # Can be oral or written.  Could also be urgent, in this case the heading can be 
             # "根據《議事規則》第24(4)條提出的質詢 " - but no discrimination is made yet
             if text.startswith('*'):
                 self.type = self.QTYPE_WRITTEN
@@ -719,12 +721,12 @@ def any_in(arr, iterable):
 
 
 def get_all_agendas(language=0):
-    from raw import models, utils
+    from raw import models
     objs = models.RawCouncilAgenda.objects.order_by('-uid')
     if language == 1:
-        objs = objs.filter(language=models.LANG_EN)
-    if language == 2:
         objs = objs.filter(language=models.LANG_CN)
+    if language == 2:
+        objs = objs.filter(language=models.LANG_EN)
     return objs.all()
 
 

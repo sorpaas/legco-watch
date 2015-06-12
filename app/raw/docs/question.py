@@ -107,7 +107,7 @@ class CouncilQuestion(object):
                 htm=htm.replace(item.keys()[0],item.values()[0])
             
             # Assume 香港增補字符集(big5hkscs) is used
-            htm = htm.decode('hkscs',errors='ignore') 
+            htm = htm.decode('hkscs',errors='ignore')
             
             cleaner = Cleaner()
             parser = HTMLParser(encoding='utf-8')
