@@ -15,15 +15,21 @@ import itertools
 from collections import OrderedDict
 from raw.utils import to_string, to_unicode, grouper
 from ..models.constants import *
+from ..models.raw import *
 
 logger = logging.getLogger('legcowatch-docs')
 
 # Global header patterns. All are <strong> and upper case. Some
 HANSARD_TITLE_e = u'OFFICIAL RECORD OF PROCEEDINGS' #not used
+HANSARD_TITLE_c = u''
 MEMBERS_PRESENT_e = u'MEMBERS PRESENT:'
+MEMBERS_PRESENT_c = u''
 MEMBERS_ABSENT_e = u'MEMBERS ABSENT:'
+MEMBERS_ABSENT_c = u''
 PUBLIC_OFFICERS_e = u'PUBLIC OFFICERS ATTENDING:'
+PUBLIC_OFFICERS_c = u''
 CLERKS_e = u'CLERKS IN ATTENDANCE:'
+CLERKS_c = u''
 # these sub-sections should be in the main_heading section
 # again, should be language-dependent
 
@@ -33,12 +39,16 @@ CLERKS_e = u'CLERKS IN ATTENDANCE:'
 # The PRESIDENT will probably say something before main topic. 
 # Sometimes interesting things happen.
 TABLED_PAPERS_e = u'TABLING OF PAPERS'
+TABLED_PAPERS_c = u''
 WRITTEN_QUESTIONS_e = u'WRITTEN ANSWERS TO QUESTIONS'
+WRITTEN_QUESTIONS_c = u''
 BILLS_e = u'BILLS'
+BILLS_c = u''
 SUSPENSION_e = u'SUSPENSION OF MEETING'
+SUSPENSION_c = u''
 
 LIST_OF_HEADERS_e = [TABLED_PAPERS_e,WRITTEN_QUESTIONS_e,BILLS_e,SUSPENSION_e]
-
+LIST_OF_HEADERS_c = [TABLED_PAPERS_c,WRITTEN_QUESTIONS_c,BILLS_c,SUSPENSION_c]
 #<hr></hr> or </hr>
 
 # some footnotes may follow
@@ -76,8 +86,10 @@ class CouncilHansard(object):
         self.source = source
         self.tree = None
         # Main Heading
-        self.main_heading = None #heading
+        self.main_heading = None #heading, element list
+        self.date_and_time = None#datetime.datetime object
         # Present List
+        self.president = None
         self.members_present = None
         self.members_absent = None
         self.public_officers = None
@@ -161,13 +173,12 @@ class CouncilHansard(object):
         
         #main_content = self.tree.xpath('//body/*')
         
-        # will be dependent of languages - later
         if self.language == LANG_EN:
             LIST_OF_HEADERS = LIST_OF_HEADERS_e
         elif self.language == LANG_CN:
-            #LIST_OF_HEADERS = LIST_OF_HEADERS_c
+            LIST_OF_HEADERS = LIST_OF_HEADERS_c
             pass
-        elif self.language == LANG_BOTH:
+        else:
             logger.error(u'The Hansard parser cannot handle Floor Recording:{}'.format(self.uid))
             return None
         
@@ -226,27 +237,33 @@ class CouncilHansard(object):
     def _parse_main_heading(self,elem_list):  
         """
         Parser for main heading of Hansard.
-        Returns an OrderedDict object, with following elements:
-        1. The date and time of meeting, as datetime object.
+        Returns a Dict object, with following elements:
+        1. The date and time of meeting, as datetime.datetime object.
         2. Council member present, as a list of RawMember objects.
         3. Council member absent, as a list of RawMember objects.
         4. Public officers present, as a list of string.
         5. Clerks present, as a list of string.
         """
-        LIST_MAIN_HEADING_e = [HANSARD_TITLE_e,MEMBERS_PRESENT_e,MEMBERS_ABSENT_e,PUBLIC_OFFICERS_e,CLERKS_e]
-        #LIST_MAIN_HEADING_c = ...
+        if self.language==LANG_EN:
+            HANSARD_TITLE = HANSARD_TITLE_e
+            MEMBERS_PRESENT = MEMBERS_PRESENT_e
+            MEMBERS_ABSENT = MEMBERS_ABSENT_e
+            PUBLIC_OFFICERS = PUBLIC_OFFICERS_e
+            CLERKS = CLERKS_e
+            president = u'THE PRESIDENT'
+        elif self.language==LANG_CN: 
+            HANSARD_TITLE = HANSARD_TITLE_c
+            MEMBERS_PRESENT = MEMBERS_PRESENT_c
+            MEMBERS_ABSENT = MEMBERS_ABSENT_c
+            PUBLIC_OFFICERS = PUBLIC_OFFICERS_c
+            CLERKS = CLERKS_c
+            president = u''
+            
+        #other languages ('b') should have raised an error in _parse, so no else case here
         
-        if self.language == LANG_EN:
-            LIST_MAIN_HEADING = LIST_MAIN_HEADING_e
-        elif self.language == LANG_CN:
-            #LIST_MAIN_HEADING = LIST_MAIN_HEADING_c
-            pass
-        elif self.language == LANG_BOTH:
-            logger.error(u'The Hansard parser cannot handle Floor Recording:{}'.format(self.uid))
-            return None
+        LIST_MAIN_HEADING = [HANSARD_TITLE,MEMBERS_PRESENT,MEMBERS_ABSENT,PUBLIC_OFFICERS,CLERKS]
 
-        # Again, make no assumption of their order - though quite certain they are identical
-        main_heading_map = OrderedDict()
+        main_heading_map = dict()
         
         #Put elements into dictionary
         elem_key = ''
@@ -263,17 +280,71 @@ class CouncilHansard(object):
         main_heading_map.update({elem_key:elem_list})
         #now the main_heading_map should have 5 keys - do a sanity check?
         
-        #
+        # Firstly, make sure it is 2-element
+        if len(main_heading_map[HANSARD_TITLE])!=2:
+            logger.warn(u'Length of HANSARD_TITLE should be two. Get {} instead.'.format(len(main_heading_map[HANSARD_TITLE])))
+            self.date_and_time = None
+        #1. Get the date and time of meeting, and compare against uid/raw_date
         # The first string should be the date of meeting, e.g.
         # 'Wednesday, 29 April 2015'
-        #We can check and see if it matches the RawCouncilHansard object
-        
+        # We can check and see if it matches the RawCouncilHansard object
         
         # The second string specifies the time when the council met, e.g.
-        #"The Council met at Eleven o'clock"
+        # "The Council met at Eleven o'clock"
+        
+        #2. Get the president, as well as members present
+        members_pres = main_heading_map[MEMBERS_PRESENT] #a list of Elements
+        #the first entry must be phrase 'THE PRESIDENT'
+        if members_pres[0].text_content()!=president:
+            logger.error(u'The first row should be "{}", but received "{}"'.format(president,members_pres[0].text_content()))
+        
+        list_members_pres = self._get_member_list(members_pres[1:])
+        # the first entry is the president
+        self.president = list_members_pres[0]
+        self.members_present = list_members_pres[1:]#the president must present- understood
+        
+        #3. Get absent members
+        members_abs = main_heading_map[MEMBERS_ABSENT]
+        self.members_absent = self._get_member_list(members_abs)
+        
+        #4. The list of public is a different: the first line is a name+title, with a second line about his/her position
         
         
-        pass
+        
+    def _get_member_list(self,elem_list):
+        """
+        Given a list of Element objects with member names as text_content(),
+        return a list of MemberName objects (if a matched name is found) and/or the raw string of the name.
+        """
+        #create NameMatch objects for name matching
+        if self.language==LANG_EN:
+            matcher = RawMember.get_matcher()
+        else:
+            matcher = RawMember.get_matcher(english=False)
+        list_members = []
+        name_pattern = ur'[A-Z\s-]+HONOURABLE\s(?P<name>[A-Z\s-]+)'
+        for member in elem_list:
+            member_str = member.text_content()
+            # Get only the part before comma
+            member_str = member_str.split(',')[0]
+            # Get rid of all title strings - the name lives after the word 'HONOURABLE'
+            name_pattern_match = re.match(name_pattern,member_str)
+            if name_pattern_match.group('name') is not None:
+                name_string = name_pattern_match.group('name')
+            else:
+                logger.warn(u'Cannot find the name for string {}'.format(member_str))
+                #store and think what to do later
+                name_string = member_str
+            # no matter what, try the NameMatcher
+            name = MemberName(name_string)
+            name_match = matcher.match(name)
+            if name_match is not None:
+                list_members.append(name_match)
+            else:
+                list_members.append(name_string)
+                
+        return list_members
+        
         
     def _parse_members_present(self):
         pass
