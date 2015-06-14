@@ -21,6 +21,13 @@ urlpatterns = patterns('',
     url(r'^raw/agendas/(?P<pk>[0-9]+)/source/?$', raw.views.RawCouncilAgendaSourceView.as_view(), name='raw_agenda_source'),
     url(r'^raw/agendas/(?P<slug>[a-zA-Z0-9\-_]+)/source/?$', raw.views.RawCouncilAgendaSourceView.as_view(), name='raw_agenda_source_uid'),
     
+    #hansards
+    url(r'^raw/hansard/?$', raw.views.RawCouncilHansardListView.as_view(), name='raw_hansard_list'),
+    url(r'^raw/hansard/(?P<pk>[0-9]+)/?$', raw.views.RawCouncilHansardDetailView.as_view(), name='raw_hansard'),
+    url(r'^raw/hansard/(?P<slug>[a-zA-Z0-9\-_.]+)/?$', raw.views.RawCouncilHansardDetailView.as_view(), name='raw_hansard_uid'),
+    url(r'^raw/hansard/(?P<pk>[0-9]+)/source/?$', raw.views.RawCouncilHansardSourceView.as_view(), name='raw_hansard_source'),
+    url(r'^raw/hansard/(?P<slug>[a-zA-Z0-9\-_.]+)/source/?$', raw.views.RawCouncilHansardSourceView.as_view(), name='raw_hansard_source_uid'),
+    
     #members
     url(r'^raw/members/?$', raw.views.RawMemberListView.as_view(), name='raw_member_list'),
     url(r'^raw/members/(?P<pk>[0-9]+)/?$', raw.views.RawMemberDetailView.as_view(), name='raw_member'),

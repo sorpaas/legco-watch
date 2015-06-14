@@ -9,7 +9,7 @@ from django.views.generic.detail import BaseDetailView
 from django.views.generic.edit import FormMixin
 from raw import models
 from raw.forms import OverrideForm
-from raw.models import RawCouncilAgenda, RawMember, RawCommittee, RawCouncilQuestion, Override
+from raw.models import RawCouncilAgenda, RawCouncilHansard, RawMember, RawCommittee, RawCouncilQuestion, Override
 from raw.names import NameMatcher, MemberName
 
 #RawCouncilAgenda
@@ -44,7 +44,32 @@ class RawCouncilAgendaDetailView(DetailView):
         return context
 
 class RawCouncilAgendaSourceView(BaseDetailView):
-    model = RawCouncilAgenda
+    model = RawCouncilHansard
+    slug_field = 'uid'
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        return HttpResponse(self.object.get_source())
+
+##RawcouncilHansard
+class RawCouncilHansardListView(ListView):
+    model = RawCouncilHansard
+    template_name = 'raw/hansard_list.html'
+    paginate_by = 25
+
+class RawCouncilHansardDetailView(DetailView):
+    model = RawCouncilHansard
+    slug_field = 'uid'
+    template_name = 'raw/hansard_detail.html'
+
+    def get_context_data(self, **kwargs):
+        context = super(RawCouncilHansardDetailView, self).get_context_data(**kwargs)
+        parser = self.object.get_parser()
+        context['parser'] = parser
+        return context
+    
+class RawCouncilHansardSourceView(BaseDetailView):
+    model = RawCouncilHansard
     slug_field = 'uid'
 
     def get(self, request, *args, **kwargs):

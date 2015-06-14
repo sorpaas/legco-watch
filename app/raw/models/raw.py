@@ -174,8 +174,9 @@ class RawCouncilHansard(RawModel):
         Returns the parser for this RawCouncilansard object
         """
         src = self.get_source()
+        lang = self.language
         try:
-            return CouncilHansard(self.uid, src)
+            return CouncilHansard(self.uid, lang, src)
         except BaseException as e:
             logger.warn(u'Could not parse hansard for {}'.format(self.uid))
             logger.warn(e)
