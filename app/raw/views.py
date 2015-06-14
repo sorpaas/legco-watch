@@ -11,6 +11,7 @@ from raw import models
 from raw.forms import OverrideForm
 from raw.models import RawCouncilAgenda, RawCouncilHansard, RawMember, RawCommittee, RawCouncilQuestion, Override
 from raw.names import NameMatcher, MemberName
+from raw.models.constants import LANG_EN, LANG_CN
 
 #RawCouncilAgenda
 class RawCouncilAgendaListView(ListView):
@@ -27,6 +28,7 @@ class RawCouncilAgendaDetailView(DetailView):
         context = super(RawCouncilAgendaDetailView, self).get_context_data(**kwargs)
         parser = self.object.get_parser()
         context['parser'] = parser
+        
         matcher = RawMember.get_matcher()
         questions = []
         if parser.questions is not None:
@@ -66,6 +68,17 @@ class RawCouncilHansardDetailView(DetailView):
         context = super(RawCouncilHansardDetailView, self).get_context_data(**kwargs)
         parser = self.object.get_parser()
         context['parser'] = parser
+        if parser is not None:
+            if parser.language == LANG_EN:
+                matcher = RawMember.get_matcher()
+            elif parser.language == LANG_CN:
+                matcher = RawMember.get_matcher(english=False)
+            if parser.president is not None:
+                name = MemberName(parser.president[0])
+                match = matcher.match(name)
+                if match is not None:
+                    obj = (parser.president, match)
+                    context['president']=obj
         return context
     
 class RawCouncilHansardSourceView(BaseDetailView):

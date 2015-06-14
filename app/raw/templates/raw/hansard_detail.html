@@ -12,18 +12,20 @@
     <a href="{% url 'error_report' %}?url={{ request.path }}">Report an error on this page</a>
   </p>
   <h2>Sections</h2>
-  <ul>
+  <ol>
   	<li><a href="#attendance">ATTENDANCE</a></li>
     {% if parser.sections %}
      {% for section in parser.sections%}
       <li>{{ section }}</a></li>
      {% endfor %}
     {% endif %}
-  </ul>
+  </ol>
   <hr></hr>
   <a name="attendance"></a>
   <h2>ATTENDANCE</h2>
-  {% if parser.president %}
+  {% if president %}
+  	<h3>PRESIDENT:</h3><a href="{% url 'raw_member' pk=president.1.1.id %}"><b>{{ president.0.1}}</b></a>
+  {% elif parser.president %}
     <h3>PRESIDENT:</h3><b>{{ parser.president.1}}</b> ({{ parser.president.0}})
   {% endif %}
   
