@@ -13,15 +13,15 @@
   </p>
   <h2>Sections</h2>
   <ol>
-  	<li><a href="#attendance">ATTENDANCE</a></li>
+  	<li><a href="#ATTENDANCE">ATTENDANCE</a></li>
     {% if parser.sections %}
      {% for section in parser.sections%}
-      <li>{{ section }}</a></li>
+      <li><a href="#{{section}}">{{ section }}</a></li>
      {% endfor %}
     {% endif %}
   </ol>
   <hr></hr>
-  <a name="attendance"></a>
+  <a name="ATTENDANCE"></a>
   <h2>ATTENDANCE</h2>
   {% if president %}
   	<h3>PRESIDENT:</h3><a href="{% url 'raw_member' pk=president.1.1.id %}"><b>{{ president.0.1}}</b></a>
@@ -57,5 +57,26 @@
   		<b>{{ clerk.0}}</b>, <i>{{ clerk.1}}</i><br />
   	{% endfor%}
   {% endif %}
+  
+  {% if parser.written_questions %}
+  <hr></hr>
+  <a name="WRITTEN ANSWERS TO QUESTIONS"></a>
+  	<h3>WRITTEN ANSWERS TO QUESTIONS</h3>
+  	<ul>
+  	{% for question in parser.written_questions %}
+  		<li><h4> {{ question.0 }} - {{ question.1 }}</h4>
+  		<p>
+  		<ol>
+  		{% for speech in question.2%}
+  			<br/> <b>{{speech.0}}</b> wrote: {{speech.1|safe}}<br/>
+  		{% endfor %}
+  		</ol>
+  		</p>
+  		</li>
+  	{% endfor %}
+  	</ul>
+  {% endif %}
+  
+  
   
 {% endblock content %}
