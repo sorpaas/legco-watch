@@ -34,7 +34,7 @@ TABLED_PAPERS_c = u'提交文件'
 WRITTEN_QUESTIONS_e = 'WRITTEN ANSWERS TO QUESTIONS'
 WRITTEN_QUESTIONS_c = u'議員質詢的書面答覆'
 MOTION_e = "MEMBERS' MOTIONS"
-#MOTION_c = u''
+MOTION_c = u'議員議案'
 BILLS_e = 'BILLS'
 BILLS_c = u'法案'
 STATEMENTS_e = 'STATEMENTS'
@@ -46,7 +46,7 @@ NEXT_MEETING_e = 'NEXT MEETING'
 NEXT_MEETING_c = u'下次會議'
 
 LIST_OF_HEADERS_e = [TABLED_PAPERS_e,WRITTEN_QUESTIONS_e,MOTION_e,BILLS_e,STATEMENTS_e,SUSPENSION_e,NEXT_MEETING_e]
-LIST_OF_HEADERS_c = [TABLED_PAPERS_c,WRITTEN_QUESTIONS_c,BILLS_c,STATEMENTS_c,SUSPENSION_c,NEXT_MEETING_c]
+LIST_OF_HEADERS_c = [TABLED_PAPERS_c,WRITTEN_QUESTIONS_c,MOTION_c,BILLS_c,STATEMENTS_c,SUSPENSION_c,NEXT_MEETING_c]
 #<hr></hr> or </hr>
 
 # some footnotes may follow
@@ -154,9 +154,22 @@ class CouncilHansard(object):
             xx.drop_tag()
         
         for xx in self.tree.find_class('pydocx-caps'):
-            xx.text = xx.text_content().upper()
+            # Make all text inside uppercase.
+            # Loop over all descendants and upper-case their text.
+            # usually 'pydocx-caps' class comes with a <strong> tag inside
+            desc = xx.xpath('./descendant::*')
+            if desc is None:
+                xx.text = xx.text_content().upper()
+            elif len(desc)==1:
+                desc[0].text = desc[0].text.upper()
+            else:
+                for yy in desc:
+                    yy.text = yy.text.upper()
+            # Drop the pydocx-caps tag
             xx.drop_tag()
-
+            #xx.attrib.pop('class')
+         
+        
         #Some testing scripts
         #tmp_content = self.tree.xpath('//body/p[138]')[0]
         #tmp_str = tmp_content.text_content()
@@ -230,12 +243,10 @@ class CouncilHansard(object):
                     hr.drop_tag()
             #print len(self.tree.xpath('//hr'))
             
-            
-            
-            
-            
-        # Title of some questions may be broken. Join them.
-        for p in self.tree.xpath('//body/p[count(preceding::hr)=1]'):
+        
+        # Some titles may be broken. Join them.
+        # Actually the main heading may also need this, but is ignored for now.
+        for p in self.tree.xpath('//body/p[count(preceding::hr)=1]'):   #i.e. the main_content
             if p.tail is None: #no text before first element
                 children = p.getchildren() #children is everything inside one <p> block
                 if len(children)>1:
@@ -414,7 +425,7 @@ class CouncilHansard(object):
                              #CLERKS:'CLERKS'
                                 }
                              )
-        #specially for errors in spelling
+        #allow for single/plural in spelling
         if type(PUBLIC_OFFICERS) is list and len(PUBLIC_OFFICERS)>1:
             for dup in PUBLIC_OFFICERS:
                 DICT_MAIN_HEADING.update({dup:'PUBLIC_OFFICERS'})
@@ -425,25 +436,34 @@ class CouncilHansard(object):
                 DICT_MAIN_HEADING.update({dup:'CLERKS'})
         else:
             DICT_MAIN_HEADING.update({CLERKS:'CLERKS'})
-        
-        
+
         main_heading_map = dict()
         
         #Put elements into dictionary
         elem_key = ''
         elem_val = []
         for elem in heading_list:
-            if elem.text_content() in DICT_MAIN_HEADING.keys():
+            tmp_str = elem.text_content()
+            #sometimes it is headed/followed by space(s). Remove them
+            try:
+                while tmp_str[0] == ' ':
+                    tmp_str = tmp_str[1:]
+                while tmp_str[-1] == ' ':
+                    tmp_str = tmp_str[:-1]
+            except IndexError:
+                pass
+            if tmp_str in DICT_MAIN_HEADING.keys():
                 # New header found
                 if elem_key=='':
-                    elem_key = DICT_MAIN_HEADING[elem.text_content()] #update key
+                    elem_key = DICT_MAIN_HEADING[tmp_str] #update key
                     continue
                 main_heading_map.update({elem_key:elem_val}) # save the previous part
-                elem_key = DICT_MAIN_HEADING[elem.text_content()] #update key
+                elem_key = DICT_MAIN_HEADING[tmp_str] #update key
                 elem_val = [] #empty list
                 continue
             elem_val.append(elem)
         main_heading_map.update({elem_key:elem_val})
+
         #now the main_heading_map should have 5 keys - do a sanity check?
         
         #1. Get the date and time of meeting, and compare against uid/raw_date
@@ -467,10 +487,11 @@ class CouncilHansard(object):
             list_members_pres = self._get_member_list(members_pres)
             self.president = list_members_pres[0]
             self.members_present = list_members_pres[1:]
-        
+
         
         #3. Get absent members
         members_abs = main_heading_map['MEMBERS_ABSENT']
+        
         self.members_absent = self._get_member_list(members_abs)
         
         #4. The list of public officers is a little different: 
