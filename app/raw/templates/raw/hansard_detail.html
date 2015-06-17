@@ -58,10 +58,24 @@
   	{% endfor%}
   {% endif %}
   
+  {% if parser.before_meeting %}
+  	<hr><hr/>
+  	<a name="BEFORE MEETING"></a>
+  	<h2>BEFORE MEETING</h2>
+  	<p>
+  		{% for speech in parser.before_meeting %}
+  		<li>
+  		{% if speech.0%}<b>{{speech.0}}</b>: {{speech.1|safe}}
+  		{% else %} <em>Event: </em> {{speech.1|safe}}{% endif %}
+  		</li>
+  		{% endfor %}
+  	</p>
+  {% endif %}
+  
   {% if parser.written_questions %}
   <hr></hr>
   <a name="WRITTEN ANSWERS TO QUESTIONS"></a>
-  	<h3>WRITTEN ANSWERS TO QUESTIONS</h3>
+  	<h2>WRITTEN ANSWERS TO QUESTIONS</h2>
   	<ul>
   	{% for question in parser.written_questions %}
   		<li><h4> {{ question.0 }} - {{ question.1 }}</h4>
@@ -77,6 +91,22 @@
   	</ul>
   {% endif %}
   
-  
+  {% if parser.motions %}
+  	<hr></hr>
+  	<a name="MEMBERS' MOTIONS"></a>
+  	<h2>MEMBERS' MOTIONS</h2>
+  	<ul>
+  		{% for motion in parser.motions %}
+  			{% if motion.0 %}<h3><b>{{ motion.0 }}</b></h3> {% endif %}
+  			{% for speech in motion.1 %}
+  			<p>
+  				{% if speech.0 %}<li><b>{{speech.0}}</b> :{{ speech.1 |safe}}</li>
+  				{% else %} <li> <em>Event: </em> {{ speech.1 |safe}}</li>{% endif %}
+  			</p>
+  			{% endfor %}
+  			
+  		{% endfor%}
+  	</ul>
+  {% endif %}
   
 {% endblock content %}
