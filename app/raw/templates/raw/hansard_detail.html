@@ -58,8 +58,13 @@
   	{% endfor%}
   {% endif %}
   
+  {% if parser.clerk_extra_string%}
+  	<hr></hr>
+  	<h4>{{ parser.clerk_extra_string }}</h4>
+  	{% endif %}
+  
   {% if parser.before_meeting %}
-  	<hr><hr/>
+  	<hr></hr>
   	<a name="BEFORE MEETING"></a>
   	<h2>BEFORE MEETING</h2>
   	<p>
@@ -70,6 +75,25 @@
   		</li>
   		{% endfor %}
   	</p>
+  {% endif %}
+  
+  {% if parser.oral_questions %}
+  <hr></hr>
+  <a name="ORAL ANSWERS TO QUESTIONS"></a>
+  	<h2>ORAL ANSWERS TO QUESTIONS</h2>
+  	<ul>
+  	{% for question in parser.oral_questions %}
+  		<li><h4> {{ question.0 }} - {{ question.1 }}</h4>
+  		<p>
+  		<ol>
+  		{% for speech in question.2%}
+  			<br/> <b>{{speech.0}}</b> said: {{speech.1|safe}}<br/>
+  		{% endfor %}
+  		</ol>
+  		</p>
+  		</li>
+  	{% endfor %}
+  	</ul>
   {% endif %}
   
   {% if parser.written_questions %}
@@ -91,6 +115,27 @@
   	</ul>
   {% endif %}
   
+  {% if parser.bills %}
+  <hr></hr>
+  <a name="BILLS"></a>
+  	<h2>BILLS</h2>
+  	<ol>
+  	{% for stage,title,content in parser.bills%}
+  	<li>
+  		{% if stage %}<h3>{{stage}}</h3>{%endif%}
+  		{% if title %}<h3><b>{{title}}</b></h3>{%endif%}
+  		<ul>
+  		{% for speech in content%}
+  			{% if speech.0%}<br/> <li><b>{{speech.0}}</b> says: {{speech.1|safe}}</li><br/>
+  			{% else %} <li>Event:<em>{{speech.1|safe}}</em></li><br/>{%endif%}
+  		{% endfor %}
+  		</ul>
+  	</li>
+  	{% endfor%}
+  	</ol>
+  {% endif %}
+  
+  
   {% if parser.motions %}
   	<hr></hr>
   	<a name="MEMBERS' MOTIONS"></a>
@@ -107,6 +152,20 @@
   			
   		{% endfor%}
   	</ul>
+  {% endif %}
+  
+  {% if parser.ce_q_and_a %}
+  <hr></hr>
+  <a name="THE CHIEF EXECUTIVE'S QUESTION AND ANSWER SESSION"></a>
+  <h2>THE CHIEF EXECUTIVE'S QUESTION AND ANSWER SESSION</h2>
+  <ul>
+  	{% for speech in parser.ce_q_and_a%}
+  		<p>
+  			{% if speech.0 %}<li><b>{{speech.0}}</b> :{{ speech.1 |safe}}</li>
+  			{% else %} <li> <em>Event: </em> {{ speech.1 |safe}}</li>{% endif %}
+  		</p>
+  	{% endfor %}
+  <ul>
   {% endif %}
   
 {% endblock content %}
