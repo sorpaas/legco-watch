@@ -20,7 +20,7 @@
      {% endfor %}
     {% endif %}
   </ol>
-  <hr></hr>
+  <hr>
   <a name="ATTENDANCE"></a>
   <h2>ATTENDANCE</h2>
   {% if president %}
@@ -59,12 +59,12 @@
   {% endif %}
   
   {% if parser.clerk_extra_string%}
-  	<hr></hr>
+  	<hr>
   	<h4>{{ parser.clerk_extra_string }}</h4>
   	{% endif %}
   
   {% if parser.before_meeting %}
-  	<hr></hr>
+  	<hr>
   	<a name="BEFORE MEETING"></a>
   	<h2>BEFORE MEETING</h2>
   	<p>
@@ -78,7 +78,7 @@
   {% endif %}
   
   {% if parser.oral_questions %}
-  <hr></hr>
+  <hr>
   <a name="ORAL ANSWERS TO QUESTIONS"></a>
   	<h2>ORAL ANSWERS TO QUESTIONS</h2>
   	<ul>
@@ -97,7 +97,7 @@
   {% endif %}
   
   {% if parser.written_questions %}
-  <hr></hr>
+  <hr>
   <a name="WRITTEN ANSWERS TO QUESTIONS"></a>
   	<h2>WRITTEN ANSWERS TO QUESTIONS</h2>
   	<ul>
@@ -116,14 +116,14 @@
   {% endif %}
   
   {% if parser.bills %}
-  <hr></hr>
+  <hr>
   <a name="BILLS"></a>
   	<h2>BILLS</h2>
   	<ol>
   	{% for stage,title,content in parser.bills%}
   	<li>
   		{% if stage %}<h3>{{stage}}</h3>{%endif%}
-  		{% if title %}<h3><b>{{title}}</b></h3>{%endif%}
+  		{% if title %}<h3><b>TITLE OF BILL: {{title}}</b></h3>{%endif%}
   		<ul>
   		{% for speech in content%}
   			{% if speech.0%}<br/> <li><b>{{speech.0}}</b> says: {{speech.1|safe}}</li><br/>
@@ -137,7 +137,7 @@
   
   
   {% if parser.motions %}
-  	<hr></hr>
+  	<hr>
   	<a name="MEMBERS' MOTIONS"></a>
   	<h2>MEMBERS' MOTIONS</h2>
   	<ul>
@@ -155,7 +155,7 @@
   {% endif %}
   
   {% if parser.ce_q_and_a %}
-  <hr></hr>
+  <hr>
   <a name="THE CHIEF EXECUTIVE'S QUESTION AND ANSWER SESSION"></a>
   <h2>THE CHIEF EXECUTIVE'S QUESTION AND ANSWER SESSION</h2>
   <ul>
