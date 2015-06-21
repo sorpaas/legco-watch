@@ -31,6 +31,8 @@ logger = logging.getLogger('legcowatch-docs')
 # Sometimes interesting things happen.
 TABLED_PAPERS_e = 'TABLING OF PAPERS'
 TABLED_PAPERS_c = u'提交文件'
+ADDRESSES_c = u'發言'
+ADDRESSES_e = 'ADDRESSES'
 ORAL_QUESTIONS_e = 'ORAL ANSWERS TO QUESTIONS'
 ORAL_QUESTIONS_c = u'議員質詢的口頭答覆'
 WRITTEN_QUESTIONS_e = 'WRITTEN ANSWERS TO QUESTIONS'
@@ -87,6 +89,8 @@ class CouncilHansard(object):
         self.before_meeting = None
         # before TABLING OF PAPERS the President will summon Members.
         self.tabled_papers = None
+        self.tabled_legislation = None
+        self.tabled_other_papers = None
         self.oral_questions = None
         self.written_questions = None
         self.bills = None
@@ -150,6 +154,7 @@ class CouncilHansard(object):
         # self.tree = lxml.html.fromstring(to_string(self.source))
         
         #self._dump_as_fixture()
+    
     
     def _clean(self):
         """
@@ -623,7 +628,127 @@ class CouncilHansard(object):
         
     
     def _parse_tabled_papers(self,elem_list):
-        pass
+        LEGISLATION_E = u'Subsidiary Legislation'
+        LEGISLATION_C = u'附屬法例'
+        OTHER_PAPERS_E = u'Other Paper'
+        OTHER_PAPERS_C = u'其他文件'
+        if len(elem_list) is None:
+            self.tabled_papers = None
+            return
+        
+        LEGISLATION = LEGISLATION_E if self.language==2 else LEGISLATION_C
+        OTHER_PAPERS = OTHER_PAPERS_E if self.language==2 else OTHER_PAPERS_C
+        
+        # There are 2 sections of tabled papers:
+        #1. Subsidiary Legislation/Instruments  附屬法例／文書 
+        #2. Other Papers  其他文件
+        # English versions seem to be tables, but Chinese may not. Also, age of
+        # Hansard can make a difference.
+        # Strategy is as follows: First we separate these two sections (ignoring opening text),
+        # then parse each section accordingly.
+        # Shall no table found, these two sections can be distinguished by their text content,
+        # as a last resort.
+        
+        # Firstly, check if the section contains exactly two tables. If true, we do not have to
+        # work too hard.
+        table_list = []
+        for elem in elem_list:
+            if elem.tag == u'table':
+                table_list.append(elem)
+                
+        if len(table_list) == 2:
+            self.tabled_legislation = self._parse_legislation_table(table=table_list[0])
+            self.tabled_other_papers = self._parse_other_papers_table(table=table_list[1])
+        elif len(table_list) == 1:
+            # Usually this table is Legislation table.
+            self.tabled_legislation = self._parse_legislation_table(table=table_list[0])
+            # Look for Other Papers
+            other_paper_elem = None
+            for i in range(len(elem_list)):
+                if elem_list[i].text_content().strip().startswith(OTHER_PAPERS):
+                    # Found Other Paper section
+                    other_paper_elem = elem_list[i+1:]
+                    break
+            self.tabled_other_papers = self._parse_other_papers_table(elem_list=other_paper_elem)
+        else:
+            # Cannot find any table element.
+            # Need to separate two sections carefully.
+            # Firstly, see if we can find the titles for two sections
+            legislation_elem_list = []
+            other_papers_elem_list = []
+            section_flag = 0
+            for elem in elem_list:
+                if elem.text_content().strip().startswith(LEGISLATION):
+                    # Found 'Subsidiary Legislation' section
+                    section_flag = 1
+                    continue
+                elif elem.text_content().strip().startswith(OTHER_PAPERS):
+                    section_flag = 2
+                    continue
+                if section_flag == 1:
+                    legislation_elem_list.append(elem)
+                elif section_flag == 2:
+                    other_papers_elem_list.append(elem)
+            # Pass to parser
+            self.tabled_legislation = self._parse_legislation_table(elem_list=legislation_elem_list)
+            self.tabled_other_papers = self._parse_other_papers_table(elem_list=other_papers_elem_list)
+        self.tabled_papers = [self.tabled_legislation,self.tabled_other_papers]
+        return
+        
+        
+    def _parse_legislation_table(self,table=None,elem_list=None):
+        # Chinese and English tables have different characteristics
+        # which can be used for our advantage
+        # Each Subsidiary Legislation/Instruments item has a title and a L.N. No.(法律公告編號)
+        # In Chinese titles are enclosed with '《》' but ones in English do not
+        
+        if elem_list is not None and table is None:
+            #Currently not seen, and is thus not supported
+            # may need this later
+            logger.warn(u'_parse_legislation_table method currently support only table.')
+            return None
+        elif elem_list is None and table is None:
+            return None
+        elif table is not None:
+            # Each entry is enclosed by <tr></tr>, with each block in a <td></td>
+            # Normally English tables have 2 column while Chinese have 3, with one in middle blank.
+            # Nonetheless, check for all number of columns, and be careful of empty rows.
+            legislation_list = []
+            entries = table.xpath('.//tr')
+            for tr in entries: # each tr is a tabled paper item
+                tds = tr.xpath('./td') # there should normally be 2 td, as 2 columns
+                if len(tds) < 2:
+                    # just ignore
+                    continue
+                elif len(tds) == 2: # best format
+                    if tds[0].text_content().strip() != u'' and tds[0].text_content().strip() is not None:
+                        legislation_list.append((tds[0].text_content().strip(),tds[1].text_content().strip()))
+                    else:
+                        # empty line
+                        continue
+                elif len(tds) > 2:
+                    #loop over all td, see if only 2 columns has text
+                    text_cnt = 0
+                    text_list = []
+                    for td in tds:
+                        if td.text_content().strip() != '' and td.text_content().strip() is not None:
+                            text_list.append(td.text_content().strip())
+                            text_cnt+=1 
+                    if text_cnt !=2:
+                        logger.error(u'Wrong number of columns found. Expected 2, but get {}'.format(text_cnt))
+                    else:
+                        legislation_list.append(tuple(text_list))
+        
+        #print len(legislation_list)
+        #for entry in legislation_list:
+        #    print entry[0],u' - ',entry[1]
+        return legislation_list
+    
+    
+    def _parse_other_papers_table(self,table=None,elem_list=None):
+        return None
+        
+        
 
     def _parse_oral_answers_to_questions(self,elem_list):
         """
@@ -643,7 +768,7 @@ class CouncilHansard(object):
         """
         if self.language==LANG_EN:
             self.written_questions = self._parse_answers_to_questions_e(elem_list)
-        elif self.language++LANG_CN:
+        elif self.language==LANG_CN:
             self.written_questions = self._parse_answers_to_questions_c(elem_list)
     
     
@@ -994,10 +1119,10 @@ class CouncilHansard(object):
         speech_list = [] #format: [(stage_0,title_0,[elem_0,elem_1,...]),(stage_0,title_1,[elem_0,elem_1,...]), ...]
         for stage in stage_content_body: #for different stages
             current_stage = stage[0]
-            cnt = 0
+            #cnt = 0
             for stage_elem in stage[1]: # for all Elements in each stage
-                print cnt
-                cnt+=1
+                #print cnt
+                #cnt+=1
                 # look for a new title
                 if len(stage_elem.xpath('./strong'))==1:
                     potential_title = stage_elem.xpath('./strong')[0]
@@ -1007,7 +1132,7 @@ class CouncilHansard(object):
                         # Save previous speeches/debates. Sometimes there is no title.
                         if speech_content_body!=[]:
                             speech_list.append((current_stage,bill_title,speech_content_body))
-                            print current_stage,bill_title
+                            #print current_stage,bill_title
                             speech_content_body = []
                         bill_title = potential_title.text_content().strip()
                         #print current_stage,bill_title

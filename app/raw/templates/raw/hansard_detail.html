@@ -77,6 +77,26 @@
   	</p>
   {% endif %}
   
+  {% if parser.tabled_papers %}
+  	<hr>
+  	<a name="TABLING OF PAPERS"></a>
+  	<h2>TABLING OF PAPERS</h2>
+  	{% if parser.tabled_legislation %}
+  	<p>
+  		<table>
+  		<tr><td><h4>Subsidiary Legislation/Instruments</h4></td><td><h4>L.N. No.</h4></td></tr>
+  		{% for entry in parser.tabled_legislation %}
+  		<tr>
+  		<td>{{entry.0}}</td><td>{{entry.1}}</td>
+  		</tr>
+  		{% endfor %}
+  		</table>
+  	</p>
+  	{% endif %}
+  {% endif %}
+  
+  
+  
   {% if parser.oral_questions %}
   <hr>
   <a name="ORAL ANSWERS TO QUESTIONS"></a>
