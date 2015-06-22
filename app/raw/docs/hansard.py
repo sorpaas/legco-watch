@@ -55,11 +55,12 @@ NEXT_MEETING_c = u'下次會議'
 ADJOURNMENT_e = 'ADJOURNMENT OF MEETING'
 ADJOURNMENT_c = u'休會'
 
-LIST_OF_HEADERS_e = [TABLED_PAPERS_e,ORAL_QUESTIONS_e,WRITTEN_QUESTIONS_e,MOTIONS_e,BILLS_e,STATEMENTS_e,CE_Q_AND_A_e,SUSPENSION_e,NEXT_MEETING_e,ADJOURNMENT_e]
-LIST_OF_HEADERS_c = [TABLED_PAPERS_c,ORAL_QUESTIONS_c,WRITTEN_QUESTIONS_c,MOTIONS_c,BILLS_c,STATEMENTS_c,CE_Q_AND_A_c,SUSPENSION_c,NEXT_MEETING_c,ADJOURNMENT_c]
+LIST_OF_HEADERS_e = [TABLED_PAPERS_e,ADDRESSES_e,ORAL_QUESTIONS_e,WRITTEN_QUESTIONS_e,MOTIONS_e,BILLS_e,STATEMENTS_e,CE_Q_AND_A_e,SUSPENSION_e,NEXT_MEETING_e,ADJOURNMENT_e]
+LIST_OF_HEADERS_c = [TABLED_PAPERS_c,ADDRESSES_c,ORAL_QUESTIONS_c,WRITTEN_QUESTIONS_c,MOTIONS_c,BILLS_c,STATEMENTS_c,CE_Q_AND_A_c,SUSPENSION_c,NEXT_MEETING_c,ADJOURNMENT_c]
 #<hr></hr> or </hr>
 
 # some footnotes may follow
+# There may be appendix as well
 
 
 class CouncilHansard(object):
@@ -83,7 +84,6 @@ class CouncilHansard(object):
         self.members_absent = None
         self.public_officers = None
         self.clerks = None
-        self.clerk_extra_string = None
         ## an <hr></hr> line separate heading and content ##
         # Main Content
         self.before_meeting = None
@@ -100,7 +100,7 @@ class CouncilHansard(object):
         self.question_map = None
         
         self.suspension = None #sometimes contain extra info as well as next meeting schedule.
-        ## an <hr></hr> line separate content and footnote etc.
+        ## There may exist an <hr> line separating content and footnote.
         self.other = None
         
         self.sections = [] #store the keys of SECTION_MAP here
@@ -301,14 +301,7 @@ class CouncilHansard(object):
             return None
         logger.info(u'Language: {}'.format(self.language))
         
-        
-        main_heading = self.tree.xpath('//body/*[count(preceding::hr)=0]')#main title and people attendance
-        main_content = self.tree.xpath('//body/*[count(preceding::hr)>0]')#main content of meeting
-        #main_sidenote = self.tree.xpath('//body/*[count(preceding::hr)=2]')#some sidenotes/appendix (optional?)
-        
-        #shut up and take my main_heading
-        self._parse_main_heading(main_heading)
-        
+        main_content = self._parse_main_heading(self.tree.xpath('//body/*'))
         ### parsing main_content: ###
         # Strategy: we do not make any assumption on the order of occurrence of each section.
         # We will loop over all Elements of main_content, checking for headers - if a <strong> tag
@@ -372,7 +365,7 @@ class CouncilHansard(object):
         # Store all keys in self.headers for easy reference
         for key in SECTION_MAP.keys():
             self.sections.append(key)
-        
+
         # Forward each section to its corresponding parser
         lang_char = 'e' if self.language==LANG_EN else 'c'
         for section in SECTION_MAP.keys():
@@ -384,7 +377,6 @@ class CouncilHansard(object):
             elif section == eval('TABLED_PAPERS_{}'.format(lang_char)):
             #elif section == globals()['TABLED_PAPERS_{}'.format(lang_char)]: #also works
                 self._parse_tabled_papers(SECTION_MAP[section])
-                
             elif section == eval('ORAL_QUESTIONS_{}'.format(lang_char)):
                 self._parse_oral_answers_to_questions(SECTION_MAP[section])
             elif section == eval('WRITTEN_QUESTIONS_{}'.format(lang_char)):
@@ -395,7 +387,11 @@ class CouncilHansard(object):
                 self._parse_motions(SECTION_MAP[section])
             elif section == eval("CE_Q_AND_A_{}".format(lang_char)):
                 self._parse_CE_Q_AND_A(SECTION_MAP[section])
-                
+            elif section == eval('SUSPENSION_{}'.format(lang_char)) or\
+                 section == eval('NEXT_MEETING_{}'.format(lang_char)) or\
+                 section == eval('ADJOURNMENT_{}'.format(lang_char)):
+                self.suspension = self._parse_ending(SECTION_MAP[section])
+            
     ## Parsers for sections
     def _parse_main_heading(self,heading_list):  
         """
@@ -471,7 +467,7 @@ class CouncilHansard(object):
             DICT_MAIN_HEADING.update({CLERKS:'CLERKS'})
 
         main_heading_map = dict()
-        
+
         #Put elements into dictionary
         elem_key = ''
         elem_val = []
@@ -499,7 +495,7 @@ class CouncilHansard(object):
                 continue
             elem_val.append(elem)
         main_heading_map.update({elem_key:elem_val})
-
+        
         #now the main_heading_map should have 5 keys - do a sanity check?
         
         #1. Get the date and time of meeting, and compare against uid/raw_date
@@ -526,9 +522,13 @@ class CouncilHansard(object):
 
         
         #3. Get absent members
-        members_abs = main_heading_map['MEMBERS_ABSENT']
-
-        self.members_absent = self._get_member_list(members_abs)
+        try:
+            members_abs = main_heading_map['MEMBERS_ABSENT']
+            self.members_absent = self._get_member_list(members_abs)
+        except:
+            # Rare but full attendance happens
+            self.members_absent = None
+        
 
         #4. The list of public officers is a little different: 
         # For English, the first line is a name+title, with a second line about his/her position
@@ -581,15 +581,16 @@ class CouncilHansard(object):
                         #tmp_list.append((officers_name,officers_title,''))
                         
                 self.public_officers = tmp_list
-        
+
         #5. Finally, the clerks in attendance
         #the format in harsard is: name, title(s)[optional],position
         #similar to officers, return a list of 3-tuple
         clerks = main_heading_map['CLERKS']              
         clerk_list = []
-        extra_str = None
         chinese_pattern_re = ur'(?P<title>.*秘書長)(?P<name>.*)'
         english_pattern_re = r'SECRETARY' #for English we just check if it is really about a clerk
+        
+        main_content = []
         for elem in clerks:
             if elem.text_content()!='': #sometimes a tailing '' (perhaps due to <hr>?) at the end
                 if self.language==LANG_EN:
@@ -597,24 +598,26 @@ class CouncilHansard(object):
                     if search is not None:
                     #if english_pattern_re in elem.text_content():
                         clerk_str = elem.text_content().rsplit(',',1)
+                        #print clerk_str
                         # not observed yet, but multiple titles may occur
                         clerk_list.append((clerk_str[0],clerk_str[1]))
                     else:
-                        logger.warn(u'Cannot parse a clerk string: {}'.format(elem.text_content()))
-                        extra_str = elem.text_content()
-                        continue
+                        # end of heading
+                        end_index = heading_list.index(elem)
+                        main_content = heading_list[end_index:]
+                        break
                 elif self.language==LANG_CN:
                     match = re.match(chinese_pattern_re,elem.text_content())
                     if match is not None:
                         clerk_list.append((match.group('name'),match.group('title')))
                     else:
-                        #sometimes there is extra string after clerk (e.g.2015.03.26)
-                        logger.warn(u'Cannot parse a clerk string: {}'.format(elem.text_content()))
-                        extra_str = elem.text_content()
-                        continue
-                    
+                        # end of heading
+                        end_index = heading_list.index(elem)
+                        main_content = heading_list[end_index:]
+                        break
+     
         self.clerks = clerk_list
-        self.clerk_extra_string = extra_str
+        return main_content
         #Done.
     
     def _parse_before_meeting(self,elem_list):
@@ -671,7 +674,7 @@ class CouncilHansard(object):
                     break
             self.tabled_other_papers = self._parse_other_papers_table(elem_list=other_paper_elem)
         else:
-            # Cannot find any table element.
+            # Cannot find any table element (rarely the case for recent Hansard)
             # Need to separate two sections carefully.
             # Firstly, see if we can find the titles for two sections
             legislation_elem_list = []
@@ -683,6 +686,7 @@ class CouncilHansard(object):
                     section_flag = 1
                     continue
                 elif elem.text_content().strip().startswith(OTHER_PAPERS):
+                    # Found 'Other Papers' section
                     section_flag = 2
                     continue
                 if section_flag == 1:
@@ -692,8 +696,8 @@ class CouncilHansard(object):
             # Pass to parser
             self.tabled_legislation = self._parse_legislation_table(elem_list=legislation_elem_list)
             self.tabled_other_papers = self._parse_other_papers_table(elem_list=other_papers_elem_list)
+        # Finally, put all papers together.
         self.tabled_papers = [self.tabled_legislation,self.tabled_other_papers]
-        return
         
         
     def _parse_legislation_table(self,table=None,elem_list=None):
@@ -746,7 +750,121 @@ class CouncilHansard(object):
     
     
     def _parse_other_papers_table(self,table=None,elem_list=None):
-        return None
+        """
+        Parser for Other Papers portion of Tabling of Papers section.
+        """
+        paper_list = []
+        if elem_list is None and table is None:
+            return None
+        if elem_list is not None and table is not None:
+            logger.warn(u'_parse_other_papers_table method needs only one input. Default to use table.')
+            elem_list = None
+        if table is not None:
+            # table for Other Papers are 3-columns, with middle column contains a dash only.
+            # so we only need the first and last one.
+            # Again, be careful with empty rows.
+            for entry in table:
+                if entry.text_content().strip()=='':
+                    #Empty row
+                    continue
+                
+                if len(entry.xpath('./td'))==3 or len(entry.xpath('./td'))==2:
+                    # Normal case
+                    paper_no = entry.xpath('./td')[0].text_content().strip()
+                    paper_title_and_content = entry.xpath('./td')[-1]
+                    # Add a '\n' for evert <br> tag encountered so Python can recognize as newline
+                    for br in paper_title_and_content.xpath('.//br'):
+                        br.tail = "\n" + br.tail if br.tail else "\n"
+                        
+                    # Split up title and content
+                    paper_title_and_content = paper_title_and_content.text_content().splitlines()
+                    if len(paper_title_and_content)==2:
+                        # One title and one content
+                        paper_no = None
+                        paper_title = paper_title_and_content[0].strip()
+                        paper_content = paper_title_and_content[1].strip()
+                    else:
+                        #Cannot work out. Just assume it is a title
+                        paper_no = None
+                        paper_title = paper_title_and_content[0].strip()
+                        paper_content = None
+                    # Save
+                    paper_list.append((paper_no,paper_title,paper_content))
+                elif len(entry.xpath('./td'))==1:
+                    # Just a title
+                    paper_title = entry.xpath('./td')[0].text_content().strip()
+                    paper_list.append((None,paper_title,None))
+                else:
+                    logger.warn(u'Unrecognised number of columns. Expected 1, 2 or 3, got {}.'.format(len(entry.xpath('./td'))))
+        elif elem_list is not None:
+            # Very tricky to tell which new <p> is a new paper and which is a continuation of previous one.
+            # Usually the case for Chinese hansards.
+            # Strategy is: keep looping for text with format '第xx號' until
+            # A. another such pattern is met; or
+            # B. a line with enclosed with blankets, i.e. '(xxx)'
+            paper_pattern = ur'^(?P<num>第(.+)號) [―|─] (?P<title>.+)'
+            paper_list = []
+            paper_title = None
+            paper_content = ''
+            for elem in elem_list:
+                # Check if it is the beginning of a new item
+                match = re.match(paper_pattern,elem.text_content().strip())
+                if match is not None:
+                    # Found a new paper
+                    # save the previous one
+                    if paper_title != None:
+                        try:
+                            paper_list.append((paper_no, paper_title, paper_content))
+                        except:
+                            paper_list.append((None, paper_title, paper_content))
+                    paper_no = match.group('num')
+                    paper_title = match.group('title')
+                    paper_content = ''
+                    continue
+                elif (elem.text_content().strip().startswith(u'(') and elem.text_content().strip().endswith(u')')):
+                    # The end of an item
+                    #append the content of this line to item, save and clear
+                    paper_content+=elem.text_content().strip()
+                    try:
+                        paper_list.append((paper_no,paper_title,paper_content))
+                    except:
+                        paper_list.append((None,paper_title,paper_content))
+                    paper_title=None
+                    paper_no = None
+                    paper_content = ''
+                    continue
+                elif elem.text_content().strip().endswith(u'報告'):
+                    #A title-only item
+                    # save previous
+                    if paper_title is not None:
+                        try:
+                            paper_list.append((paper_no,paper_title,paper_content))
+                        except:
+                            paper_list.append((None,paper_title,paper_content))
+                    #save this item
+                    paper_list.append((None,elem.text_content().strip(),None))
+                    paper_title = None
+                    paper_no = None
+                    paper_content = ''
+                    continue
+                # any items not matching previous criteria are either description or new item title
+                if paper_title is not None:
+                    paper_content+=elem.text_content().strip()
+                else:
+                    paper_title = elem.text_content().strip()
+            # last entry
+            if paper_title is not None:
+                try:
+                    paper_list.append((paper_no,paper_title,paper_content))
+                except:
+                    paper_list.append((None,paper_title,paper_content))
+                
+        #cnt=0
+        #for item in paper_list:
+        #    print cnt,item[0],u': ',item[1],u' -- ',item[2]
+        #    cnt+=1
+        
+        return paper_list
         
         
 
@@ -1250,7 +1368,21 @@ class CouncilHansard(object):
     def _parse_CE_Q_AND_A(self,elem_list):
         self.ce_q_and_a = self.parse_dialogs(elem_list)
         
+    def _parse_ending(self,elem_list):
+        # There may be an <hr> - but do not use it for splitting footnotes
+        # look for class 'pydocx-list-style-type-decimal' instead
         
+        dialog_list = []
+        for elem in elem_list:
+            if elem.xpath(".//li") == []:
+                dialog_list.append(elem)
+            else:
+                end_index = elem_list.index(elem)
+                footnotes = elem_list[end_index:] #will decide what to do about them later
+                break
+        return self.parse_dialogs(dialog_list)
+    
+    
     # Functions
     
     def parse_dialogs(self,elem_list):
@@ -1309,7 +1441,7 @@ class CouncilHansard(object):
                     elem.text = elem.text.lstrip(u':')
 
                 speech = u''.join([speech,remove_hr_tags(tostring(elem))])
-        if speech != u'':
+        if speech.strip() != u'' and speech is not None:
             list_of_speeches.append((speaker,speech))
             
         #print len(list_of_speeches)

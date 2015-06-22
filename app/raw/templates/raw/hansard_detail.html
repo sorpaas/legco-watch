@@ -58,11 +58,6 @@
   	{% endfor%}
   {% endif %}
   
-  {% if parser.clerk_extra_string%}
-  	<hr>
-  	<h4>{{ parser.clerk_extra_string }}</h4>
-  	{% endif %}
-  
   {% if parser.before_meeting %}
   	<hr>
   	<a name="BEFORE MEETING"></a>
@@ -83,16 +78,37 @@
   	<h2>TABLING OF PAPERS</h2>
   	{% if parser.tabled_legislation %}
   	<p>
-  		<table>
-  		<tr><td><h4>Subsidiary Legislation/Instruments</h4></td><td><h4>L.N. No.</h4></td></tr>
+  		<h4>Subsidiary Legislation/Instruments</h4>
+  		<table border="1" style="width:100%">
+  		<tbody>
+  		<tr><th>Title</th> <th>L.N. No.</th></tr>
   		{% for entry in parser.tabled_legislation %}
   		<tr>
   		<td>{{entry.0}}</td><td>{{entry.1}}</td>
   		</tr>
   		{% endfor %}
+  		</tbody>
   		</table>
   	</p>
   	{% endif %}
+  	{% if parser.tabled_other_papers %}
+  	<p>
+  		<h4>Other Papers</h4>
+  		<table border="1" style="width:100%">
+  		<tbody>
+  		<tr><th> No. </th><th>Title</th> <th>Extra info</th></tr>
+  		{% for paper in parser.tabled_other_papers%}
+  		<tr>
+  		<td>{% if paper.0%}{{paper.0}}{% endif%}</td>
+  		<td>{{paper.1}}</td>
+  		<td>{% if paper.2%}{{paper.2}}{% endif%}</td>
+  		</tr>
+  		{% endfor %}
+  		</tbody>
+  		</table>
+  	</p>
+  	{% endif %}
+  	
   {% endif %}
   
   
@@ -186,6 +202,18 @@
   		</p>
   	{% endfor %}
   <ul>
+  {% endif %}
+  
+  {% if parser.suspension %}
+  <hr>
+  <a name = "ENDING"></a>
+  <h2>ENDING</h2>
+  	{% for speech in parser.suspension%}
+  		<p>
+  			{% if speech.0 %}<li><b>{{speech.0}}</b> :{{ speech.1 |safe}}</li>
+  			{% else %} <li> <em>Event: </em> {{ speech.1 |safe}}</li>{% endif %}
+  		</p>
+  	{% endfor %}
   {% endif %}
   
 {% endblock content %}
