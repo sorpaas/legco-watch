@@ -9,8 +9,9 @@ from django.views.generic.detail import BaseDetailView
 from django.views.generic.edit import FormMixin
 from raw import models
 from raw.forms import OverrideForm
-from raw.models import RawCouncilAgenda, RawMember, RawCommittee, RawCouncilQuestion, Override
+from raw.models import RawCouncilAgenda, RawCouncilHansard, RawMember, RawCommittee, RawCouncilQuestion, Override
 from raw.names import NameMatcher, MemberName
+from raw.models.constants import LANG_EN, LANG_CN
 
 #RawCouncilAgenda
 class RawCouncilAgendaListView(ListView):
@@ -27,19 +28,61 @@ class RawCouncilAgendaDetailView(DetailView):
         context = super(RawCouncilAgendaDetailView, self).get_context_data(**kwargs)
         parser = self.object.get_parser()
         context['parser'] = parser
+        
         matcher = RawMember.get_matcher()
         questions = []
         if parser.questions is not None:
             for q in parser.questions:
                 name = MemberName(q.asker)
                 match = matcher.match(name)
+                if match==None:
+                #try Chinese. 
+                #This will be better handled when we have different language display
+                    matcher = RawMember.get_matcher(english=False)
+                    match = matcher.match(name)
                 obj = (q, match)
                 questions.append(obj)
         context['questions'] = questions
         return context
 
 class RawCouncilAgendaSourceView(BaseDetailView):
-    model = RawCouncilAgenda
+    model = RawCouncilHansard
+    slug_field = 'uid'
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        return HttpResponse(self.object.get_source())
+
+##RawcouncilHansard
+class RawCouncilHansardListView(ListView):
+    model = RawCouncilHansard
+    template_name = 'raw/hansard_list.html'
+    paginate_by = 25
+
+class RawCouncilHansardDetailView(DetailView):
+    model = RawCouncilHansard
+    slug_field = 'uid'
+    template_name = 'raw/hansard_detail.html'
+
+    def get_context_data(self, **kwargs):
+        context = super(RawCouncilHansardDetailView, self).get_context_data(**kwargs)
+        parser = self.object.get_parser()
+        context['parser'] = parser
+        if parser is not None:
+            if parser.language == LANG_EN:
+                matcher = RawMember.get_matcher()
+            elif parser.language == LANG_CN:
+                matcher = RawMember.get_matcher(english=False)
+            if parser.president is not None:
+                name = MemberName(parser.president[0])
+                match = matcher.match(name)
+                if match is not None:
+                    obj = (parser.president, match)
+                    context['president']=obj
+        return context
+    
+class RawCouncilHansardSourceView(BaseDetailView):
+    model = RawCouncilHansard
     slug_field = 'uid'
 
     def get(self, request, *args, **kwargs):
@@ -98,10 +141,13 @@ class RawCouncilQuestionDetailView(DetailView):
         parser = self.object.get_parser()
         if parser:
             context['parser'] = parser
-            if parser.asker:
-                matcher = RawMember.get_matcher()
+            if parser.asker: 
                 name = MemberName(parser.asker)
+                matcher = RawMember.get_matcher()
                 match = matcher.match(name)
+                if match is None:
+                    matcher = RawMember.get_matcher(english=False)
+                    match = matcher.match(name)
                 context['name']=match
         return context
 

@@ -73,30 +73,35 @@ class QuestionRecordOtherPapers(TypedItem):
 #                                        
 
 class HansardAgenda(TypedItem):
-    """ This will need developed, as it is structured in HTML """
+    ####Depreciated####
+    """ This will need developing, as it is structured in HTML """
     type_name = "HansardAgenda"
     date = Field()
+    source_url = Field()
+    file_urls = Field()
+    files = Field()
 
 class HansardMinutes(TypedItem):
-    """ This contains a PDF file of the mintues """
+    """ This contains a file of the mintues """
     type_name = "HansardMinutes"
     date = Field()
+    source_url = Field()
     file_urls = Field()
     files = Field()
 
 class HansardRecord(TypedItem):
-    """ This will contain a PDF file for the record for the date """
+    """ This will contain a DOC file for the record for the date """
     type_name = "HansardRecord"
     date = Field()
-    language = Field() # Text string - 'en' | 'cn'
+    source_url = Field()
     file_urls = Field()
     files = Field()
-
+    
 #####
-# Library related items
+# Library related items, including agenda and hansard at the moment
 #####
 
-
+#Common item for Library database
 class LibraryResultPage(TypedItem):
     """
     Stores individual results pages, for debugging
@@ -116,6 +121,21 @@ class LibraryAgenda(TypedItem):
     Library record for Council Meeting agendas
     """
     type_name = "LibraryAgenda"
+    title_en = Field()
+    title_cn = Field()
+    # List of (title, link) pairs
+    links = Field()
+    file_urls = Field()
+    files = Field()
+    # The URL to the source page
+    source_url = Field()
+    
+    
+class LibraryHansard(TypedItem):
+    """
+    Library record for Council Meeting Hansard
+    """
+    type_name = "LibraryHansard"
     title_en = Field()
     title_cn = Field()
     # List of (title, link) pairs

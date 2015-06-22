@@ -6,7 +6,7 @@
     <a href="{{ object.url }}">Original document</a>
   </p>
   <p>
-    <a href="{% url 'raw_agenda_source' pk=object.id %}">Parsed source</a>
+    <a href="{% url 'raw_hansard_source' pk=object.id %}">Parsed source</a>
   </p>
   <p>
     <a href="{% url 'error_report' %}?url={{ request.path }}">Report an error on this page</a>

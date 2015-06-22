@@ -147,8 +147,8 @@ class MemberName(object):
             self.chinese_name = proper(res['cname'])
             return
 
-        reversed = ur'{}, {}'.format(lname_re, ename_re)
-        match = re.search(reversed, name)
+        reversed_re = ur'{}, {}'.format(lname_re, ename_re)
+        match = re.search(reversed_re, name)
         if match is not None:
             res = match.groupdict()
             self.last_name = proper(res['lname'])
@@ -167,11 +167,13 @@ class MemberName(object):
         """
         Given a chinese name, parse it into its constituent parts
         """
-        # Assumes that Chinese names are 3 characters.
-        cname_re = ur'^(?P<name>\w{2,3})(?P<title>議員)?$'
+        # Assumes that Chinese names are 2-4 characters.
+        cname_re = ur'^(?P<name>\w{2,4})(?P<title>議員)?$'
         match = re.match(cname_re, name, re.UNICODE)
         if match is not None:
             res = match.groupdict()
+            # actually not strictly correct - think about the case of '梁劉柔芬' and '司徒華'
+            # but sufficient
             self.last_name = res['name'][0]
             self.chinese_name = res['name'][1:3]
             self.title = res['title']

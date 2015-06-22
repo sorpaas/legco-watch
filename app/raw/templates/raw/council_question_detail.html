@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <h1>Council Question - {{ parser.uid }}</h1>
+  <h1>Council Question - {{ object.id }} - {{ parser.uid }}</h1>
   <p>
     <a href="{{ object.subject_link }}">Original document - Agenda</a>
   </p>

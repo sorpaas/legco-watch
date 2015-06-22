@@ -16,9 +16,13 @@ and create items for each date.  We'll download each XML file separately and sav
 The processor will load the XML into the database, then we'll parse the XML with
 an object abstraction at the parsing stage.
 
-Long's note: Legco already as an API for vote record, accessible via http://app.legco.gov.hk/vrdb/odata/vVotingResult
-More details could be found on http://www.legco.gov.hk/odata/chinese/vrdb.html, 
-but the API seems offline when I visit (19 May 2015).
-Looking through the meta-data (http://app.legco.gov.hk/vrdb/odata/$metadata), 
-we should try to bind these properties as keys to our models.
+lpounng's side-note: Legco also as an API (beta) for vote record, accessible via:
+http://app.legco.gov.hk/vrdb/odata/vVotingResult
+More details could be found on:
+http://www.legco.gov.hk/odata/chinese/vrdb.html, 
+but the API seems slow when I visited (May 2015).
+Meta-data: http://app.legco.gov.hk/vrdb/odata/$metadata, 
+May help when we bind these properties as keys to our models.
+
+
 """

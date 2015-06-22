@@ -8,6 +8,7 @@ import re
 from .. import utils
 from ..docs.agenda import CouncilAgenda, AgendaQuestion
 from ..docs.question import CouncilQuestion
+from ..docs.hansard import CouncilHansard
 from ..names import NameMatcher, MemberName
 from constants import *
 
@@ -60,7 +61,7 @@ class RawCouncilAgenda(RawModel):
     """
     Storage of Scrapy items relating to LegCo agenda items
 
-    Should be from the Library Site: http://library.legco.gov.hk:1080/search~S10?/tAgenda+for+the+meeting+of+the+Legislative+Council/tagenda+for+the+meeting+of+the+legislative+council/1%2C670%2C670%2CB/browse
+    Should come from the Library Site: http://library.legco.gov.hk:1080/search~S10?/tAgenda+for+the+meeting+of+the+Legislative+Council/tagenda+for+the+meeting+of+the+legislative+council/1%2C670%2C670%2CB/browse
     """
     # Title of the document.  Should be "Agenda of the meeting of the Legislative Council, <date>"
     title = models.CharField(max_length=255, blank=True)
@@ -129,13 +130,85 @@ class RawCouncilAgenda(RawModel):
         return date(int(date_string[0:4]), int(date_string[4:6]), int(date_string[6:8]))
 
 
+class RawCouncilHansard(RawModel):
+    """
+    Storage of LegCo hansard documents
+    Source is Library- http://library.legco.gov.hk:1080/search~S10?/tHong+Kong+Hansard/thong+kong+hansard/1%2C3690%2C3697%2CB/browse
+    Library DB does not tell which hansards come from a meeting that spread over a few days.
+    We will use the raw_date field to match the date with agendas later (in parsed model perhaps).
+    """
+    title = models.CharField(max_length=255, blank=True)
+    raw_date = models.CharField(max_length=100, blank=True)
+    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
+    url = models.URLField(blank=True)
+    # Sometimes due to bandwidth/connection, file may fail to be downloaded
+    local_filename = models.CharField(max_length=255, blank=True, null=True)
+    
+    class Meta:
+        ordering=['-uid']
+        app_label = 'raw'
+    
+    def __unicode__(self):
+        return u'{} - {}'.format(self.uid, self.title)
+    
+    def full_local_filename(self):
+        return utils.get_file_path(self.local_filename)
+    
+    def get_source(self):
+        full_file = self.full_local_filename()
+        filetype = utils.check_file_type(full_file)
+        # most (if not all) are DOC
+        if filetype == utils.DOC:
+            src = utils.doc_to_html(full_file)
+        elif filetype == utils.DOCX:
+            src = utils.docx_to_html(full_file)
+        elif filetype == utils.PDF:
+            # Cannot handle PDF
+            src = None
+        else:
+            raise NotImplementedError(u"Unexpected filetype for uid {}".format(self.uid))
+        return src
+    
+    def get_parser(self):
+        """
+        Returns the parser for this RawCouncilansard object
+        """
+        src = self.get_source()
+        lang = self.language
+        try:
+            return CouncilHansard(self.uid, lang, src)
+        except BaseException as e:
+            logger.warn(u'Could not parse hansard for {}'.format(self.uid))
+            logger.warn(e)
+            return None
+    
+    @classmethod
+    def get_from_parser(cls, parser):
+        """
+        Get a model object from a CouncilHansard parser object
+        """
+        return cls.objects.get(uid=parser.uid)
+
+    def _dump_as_fixture(self):
+        """
+        Saves the raw html to a fixture for testing
+        """
+        with open('raw/tests/fixtures/{}.html'.format(self.uid), 'wb') as f:
+            f.write(self.get_source().encode('utf-8'))
+
+    @property
+    def meeting_date(self):
+        # Returns a datetime.date object of the day which this hansard is concerned
+        return date(int(self.raw_date[0:4]), int(self.raw_date[4:6]), int(self.raw_date[6:8]))
+    
+    
 class RawCouncilVoteResult(RawModel):
     """
     Storage of LegCo vote results
     Sources can be http://www.legco.gov.hk/general/english/open-legco/cm-201314.html or
     http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1314.htm
     """
-    # Some meetings span two days, which is why the raw date is a string
+    # Some meetings span more than one day, which is why the raw date is a string
     raw_date = models.CharField(max_length=50, blank=True)
     # URL to the XML file
     xml_url = models.URLField(null=True, blank=True)
@@ -145,20 +218,7 @@ class RawCouncilVoteResult(RawModel):
     pdf_url = models.URLField(null=True, blank=True)
     # local filename of the saved PDF in the scrapy folder
     pdf_filename = models.CharField(max_length=255, blank=True)
-
-
-class RawCouncilHansard(RawModel):
-    """
-    Storage of LegCo hansard documents
-    Sources can be Library: http://library.legco.gov.hk:1080/search~S10?/tHong+Kong+Hansard/thong+kong+hansard/1%2C3690%2C3697%2CB/browse
-    or http://www.legco.gov.hk/general/english/counmtg/yr12-16/mtg_1314.htm
-    """
-    title = models.CharField(max_length=255, blank=True)
-    paper_number = models.CharField(max_length=50, blank=True)
-    language = models.IntegerField(null=True, blank=True, choices=LANG_CHOICES)
-    url = models.URLField(blank=True)
-    local_filename = models.CharField(max_length=255, blank=True)
-
+    
 
 class RawMember(RawModel):
     name_e = models.CharField(max_length=100, blank=True)
@@ -188,9 +248,13 @@ class RawMember(RawModel):
     UID_PREFIX = 'member'
 
     not_overridable = ['service_e', 'service_c', 'photo_file']
-
+    
+    class Meta:
+        ordering = ['uid']
+        app_label = 'raw'
+        
     def __unicode__(self):
-        return u"{} {}".format(unicode(self.name_e), unicode(self.name_c))
+        return u"{} {} - {}".format(unicode(self.name_e), unicode(self.name_c), self.uid)
 
     def get_raw_schedule_member(self):
         """
@@ -229,6 +293,7 @@ class RawCouncilQuestion(RawModel):
     """
     Storage for Members' questions, from http://www.legco.gov.hk/yr13-14/english/counmtg/question/ques1314.htm#toptbl
     """
+    #format: d.m.yyyy
     raw_date = models.CharField(max_length=50, blank=True)
     # Q. 5 <br> (Oral), for example
     number_and_type = models.CharField(max_length=255, blank=True)
@@ -247,7 +312,7 @@ class RawCouncilQuestion(RawModel):
     DATE_RE = ur'(?P<day>\d{1,2})\.(?P<mon>\d{1,2})\.(?P<year>\d{2,4})'
 
     class Meta:
-        ordering = ['-raw_date']
+        ordering = ['-uid']
         app_label = 'raw'
 
     def __unicode__(self):
@@ -281,6 +346,9 @@ class RawCouncilQuestion(RawModel):
         match = re.search(ur'\d+', self.number_and_type)
         if match is not None:
             return int(match.group())
+        elif self.is_urgent:
+            # the case for single urgent question
+            return 0
         else:
             return None
 
@@ -327,7 +395,7 @@ class RawCouncilQuestion(RawModel):
         if self.is_oral and agenda_question.type != AgendaQuestion.QTYPE_ORAL:
             logger.warn("u{} Question types don't match: {} vs {}".format(self.uid, u'Oral' if self.is_oral else u'Written', u'Oral' if agenda_question.type == AgendaQuestion.QTYPE_ORAL else u'Written'))
     
-    ##### added for new model- Long #####
+    ##### added for new model- lpounng #####
     def full_local_filename(self):
         if self.local_filename:
             return utils.get_file_path(self.local_filename)
@@ -363,7 +431,56 @@ class RawCouncilQuestion(RawModel):
             logger.warn(u'Could not parse question for {}'.format(self.uid))
             logger.warn(e)
             return None
-
+    
+    def get_lang_counterpart(self):
+        #Given a question instance, return the instance in another language
+        try:
+            if self.uid[-1]==u'e':
+                return RawCouncilQuestion.objects.get_by_uid(self.uid[:-1]+u'c')
+            elif self.uid[-1]==u'c':
+                return RawCouncilQuestion.objects.get_by_uid(self.uid[:-1]+u'e')   
+        except:
+            return None
+        
+    @classmethod
+    def fix_asker_by_parser(cls):
+        """
+        Loop over all questions without an asker FK, and attempt to use parser to fix it.
+        Returns a list of UIDs of questions still without an asker.
+        Advise to run this after saving questions with processor.
+        """
+        matcher_en = RawMember.get_matcher()
+        matcher_cn = RawMember.get_matcher(False)
+        raw_questions_without_asker = cls.objects.filter(asker=None)
+        no_asker_list = []
+        for q in raw_questions_without_asker:
+            parser = q.get_parser()
+            if parser is not None:
+                asker_str = parser.asker
+                matcher = matcher_en if q.uid[-1] == u'e' else matcher_cn
+                name = MemberName(asker_str)
+                match = matcher.match(name)
+                if match is not None:
+                    member = match[1]
+                    q.asker = member
+                    q.save()
+                else:
+                    # Try different language counterpart
+                    q_otherlang = q.get_lang_counterpart()
+                    parser = q_otherlang.get_parser()
+                    if parser is not None:
+                        asker_str = parser.asker
+                        matcher = matcher_en if q_otherlang.uid[-1] == u'e' else matcher_cn
+                        name = MemberName(asker_str)
+                        match = matcher.match(name)
+                        if match is not None:
+                            member = match[1]
+                            q.asker = member
+                            q.save()
+                        else:
+                            no_asker_list.append(q.uid)
+                            logger.warn(u'Cannot match asker {} for question {} with effort of parser.'.format(asker_str,q.uid))
+        return no_asker_list
     @classmethod
     def get_from_parser(cls, parser):
         """
@@ -377,7 +494,8 @@ class RawCouncilQuestion(RawModel):
         """
         with open('raw/tests/fixtures/{}.html'.format(self.uid), 'wb') as f:
             f.write(self.get_source().encode('utf-8'))
-    #####End added by Long#####
+    #####End added by lpounng#####
+
 
 class RawScheduleMember(RawModel):
     """
@@ -478,4 +596,5 @@ class RawMeetingCommittee(RawModel):
     committee = models.ForeignKey(RawCommittee, null=True, blank=True, related_name='meeting_committees')
 
     def __unicode__(self):
-        return u'{} {}'.format(self.slot_id, self._committee_id)
+        return u'slot-{}:committee-{}'.format(self.slot_id, self._committee_id)
+

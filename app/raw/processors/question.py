@@ -70,31 +70,54 @@ class QuestionProcessor(BaseProcessor):
                     matcher = matcher_en
 
                 # Try to find the RawMember object that matches the asker
+                # There will still be some askers not matched - we will use parser to fix them soon
                 raw_name = item['asker']
+                # Some postprocessing
+                # Get rid of 'Hon', '議員' and ''
+                raw_name = raw_name.replace(u'Hon',u'')
+                raw_name = raw_name.replace(u'議員',u'')
+                
+                # Get rid of heading and tailing spaces
+                if raw_name[0]==u' ':
+                    raw_name = raw_name[1:]
+                if raw_name[-1]==u' ':
+                    raw_name = raw_name[:-1]
+                
+                # Try to match the name with RawMember
                 name = MemberName(raw_name)
                 match = matcher.match(name)
                 if match is not None:
                     member = match[1]
                     obj.asker = member
+                else:
+                    pass
+                    #logger.warn(u'Cannot match asker "{}" with members in database'.format(raw_name))
                     
                 # Get the local path of reply content
                 try:
                     obj.local_filename = item['files'][0]['path']
                 except IndexError:
+                    obj.local_filename = None
                     logger.warn(u'Could not get local path for question {} from date {}'.format(item['number_and_type'], item['date']))
                 
-                # Finally save
-                obj.save()
+                # Sometimes the reply link is not available yet,
+                # and sometimes the meeting was cancelled or deferred
+                # In these cases, forget about them.
+                if obj.local_filename is not None:
+                    obj.save()
+                
             except (KeyError, RuntimeError) as e:
                 self._count_error += 1
                 logger.warn(u'Could not process question {} from date {}'.format(item['number_and_type'], item['date']))
                 logger.warn(unicode(e))
                 continue
-        logger.info("{} items processed, {} created, {} updated, {} errors".format(counter, self._count_created, self._count_updated, self._count_error))
-    
-    def _process_question_item(self,item):
-        pass
-    
+        #After saving all items, use parser to fix missing askers
+        no_asker_list = RawCouncilQuestion.fix_asker_by_parser()
+        
+        logger.info(u"{} items processed, {} created, {} updated, {} errors, {} questions without asker".format(counter, self._count_created, self._count_updated, self._count_error, len(no_asker_list)))
+        #for debugging
+        print(no_asker_list)
+        
     def _generate_uid(self, item):
         """
         UIDs for questions are of the form 'question-09.10.2013-1-e' (question-<date>-<number>-<lang>)
@@ -110,8 +133,7 @@ class QuestionProcessor(BaseProcessor):
         
         no_number_flag=0
         no_type_flag=0
-        
-        date = item['date']
+
         match = re.search(number_re, item['number_and_type'], re.UNICODE)
         if match is None:
             match = re.search(number_re_nonumber, item['number_and_type'], re.UNICODE)
@@ -137,17 +159,18 @@ class QuestionProcessor(BaseProcessor):
         #in some very rare cases the number is 0 but no 'U'
         is_urgent = (u'UQ' in item['number_and_type']) or number=='0' or number==0
         
+        date = item['date']
+        # date is in format 'd.m.yyyy'. We want 'yyyymmdd'
+        date_str = date.split('.')
+        if len(date_str) ==3:
+            yr = date_str[-1]
+            mn = date_str[1] if len(date_str[1])==2 else '0'+date_str[1]
+            dd = date_str[0] if len(date_str[0])==2 else '0'+date_str[0]
+            date = yr+mn+dd
+        else:
+            raise RuntimeError(u'Incorrect date format: {}'.format(date))
+        
         if not is_urgent:
             return u'question-{}-{}-{}'.format(date, number, lang)
         else:
             return u'question-{}-u{}-{}'.format(date, number, lang)
-    
-    def _get_local_filename(self, link, item):
-        """
-        Given a link and an item to which the link belongs, get the local file path that
-        matches the link
-        """
-        for f in item['files']:
-            if link == f['url']:
-                return f['path']
-        return None

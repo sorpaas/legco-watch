@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h1>Council Formal Hansards - {{ parser.uid }}</h1>
+  <p>
+    <a href="{{ object.url }}">Original document</a>
+  </p>
+  <p>
+    <a href="{% url 'raw_hansard_source' pk=object.id %}">Parsed source</a>
+  </p>
+  <p>
+    <a href="{% url 'error_report' %}?url={{ request.path }}">Report an error on this page</a>
+  </p>
+  <h2>Sections</h2>
+  <ol>
+  	<li><a href="#ATTENDANCE">ATTENDANCE</a></li>
+    {% if parser.sections %}
+     {% for section in parser.sections%}
+      <li><a href="#{{section}}">{{ section }}</a></li>
+     {% endfor %}
+    {% endif %}
+  </ol>
+  <hr>
+  <a name="ATTENDANCE"></a>
+  <h2>ATTENDANCE</h2>
+  {% if president %}
+  	<h3>PRESIDENT:</h3><a href="{% url 'raw_member' pk=president.1.1.id %}"><b>{{ president.0.1}}</b></a>
+  {% elif parser.president %}
+    <h3>PRESIDENT:</h3><b>{{ parser.president.1}}</b> ({{ parser.president.0}})
+  {% endif %}
+  
+  {% if parser.members_present%}
+  	<h3>MEMBERS PRESENT:</h3>
+  	{% for member in parser.members_present%}
+  		<b>{{ member.1}}</b>  ({{ member.0}})<br />
+  	{% endfor%}
+  {% endif%}
+  
+  {% if parser.members_absent%}
+  	<h3>MEMBERS ABSENT:</h3>
+  	{% for member in parser.members_absent%}
+  		<b>{{ member.1}}</b>  ({{ member.0}})<br />
+  	{% endfor%}
+  {% endif%}
+  
+  {% if parser.public_officers%}
+  	<h3>PUBLIC OFFICERS ATTENDING:</h3>
+  	{% for officer in parser.public_officers%}
+  		<b>{{ officer.0}}, {{ officer.1}}</b><br />
+  		<i>{{ officer.2}}</i><br />
+  	{% endfor %}
+  {% endif %}
+  
+  {% if parser.clerks %}
+  	<h3>CLERKS IN ATTENDANCE:</h3>
+  	{% for clerk in parser.clerks%}
+  		<b>{{ clerk.0}}</b>, <i>{{ clerk.1}}</i><br />
+  	{% endfor%}
+  {% endif %}
+  
+  {% if parser.before_meeting %}
+  	<hr>
+  	<a name="BEFORE MEETING"></a>
+  	<h2>BEFORE MEETING</h2>
+  	<p>
+  		{% for speech in parser.before_meeting %}
+  		<li>
+  		{% if speech.0%}<b>{{speech.0}}</b>: {{speech.1|safe}}
+  		{% else %} <em>Event: </em> {{speech.1|safe}}{% endif %}
+  		</li>
+  		{% endfor %}
+  	</p>
+  {% endif %}
+  
+  {% if parser.tabled_papers %}
+  	<hr>
+  	<a name="TABLING OF PAPERS"></a>
+  	<h2>TABLING OF PAPERS</h2>
+  	{% if parser.tabled_legislation %}
+  	<p>
+  		<h4>Subsidiary Legislation/Instruments</h4>
+  		<table border="1" style="width:100%">
+  		<tbody>
+  		<tr><th>Title</th> <th>L.N. No.</th></tr>
+  		{% for entry in parser.tabled_legislation %}
+  		<tr>
+  		<td>{{entry.0}}</td><td>{{entry.1}}</td>
+  		</tr>
+  		{% endfor %}
+  		</tbody>
+  		</table>
+  	</p>
+  	{% endif %}
+  	{% if parser.tabled_other_papers %}
+  	<p>
+  		<h4>Other Papers</h4>
+  		<table border="1" style="width:100%">
+  		<tbody>
+  		<tr><th> No. </th><th>Title</th> <th>Extra info</th></tr>
+  		{% for paper in parser.tabled_other_papers%}
+  		<tr>
+  		<td>{% if paper.0%}{{paper.0}}{% endif%}</td>
+  		<td>{{paper.1}}</td>
+  		<td>{% if paper.2%}{{paper.2}}{% endif%}</td>
+  		</tr>
+  		{% endfor %}
+  		</tbody>
+  		</table>
+  	</p>
+  	{% endif %}
+  	
+  {% endif %}
+  
+  
+  
+  {% if parser.oral_questions %}
+  <hr>
+  <a name="ORAL ANSWERS TO QUESTIONS"></a>
+  	<h2>ORAL ANSWERS TO QUESTIONS</h2>
+  	<ul>
+  	{% for question in parser.oral_questions %}
+  		<li><h4> {{ question.0 }} - {{ question.1 }}</h4>
+  		<p>
+  		<ol>
+  		{% for speech in question.2%}
+  			<br/> <b>{{speech.0}}</b> said: {{speech.1|safe}}<br/>
+  		{% endfor %}
+  		</ol>
+  		</p>
+  		</li>
+  	{% endfor %}
+  	</ul>
+  {% endif %}
+  
+  {% if parser.written_questions %}
+  <hr>
+  <a name="WRITTEN ANSWERS TO QUESTIONS"></a>
+  	<h2>WRITTEN ANSWERS TO QUESTIONS</h2>
+  	<ul>
+  	{% for question in parser.written_questions %}
+  		<li><h4> {{ question.0 }} - {{ question.1 }}</h4>
+  		<p>
+  		<ol>
+  		{% for speech in question.2%}
+  			<br/> <b>{{speech.0}}</b> wrote: {{speech.1|safe}}<br/>
+  		{% endfor %}
+  		</ol>
+  		</p>
+  		</li>
+  	{% endfor %}
+  	</ul>
+  {% endif %}
+  
+  {% if parser.bills %}
+  <hr>
+  <a name="BILLS"></a>
+  	<h2>BILLS</h2>
+  	<ol>
+  	{% for stage,title,content in parser.bills%}
+  	<li>
+  		{% if stage %}<h3>{{stage}}</h3>{%endif%}
+  		{% if title %}<h3><b>TITLE OF BILL: {{title}}</b></h3>{%endif%}
+  		<ul>
+  		{% for speech in content%}
+  			{% if speech.0%}<br/> <li><b>{{speech.0}}</b> says: {{speech.1|safe}}</li><br/>
+  			{% else %} <li>Event:<em>{{speech.1|safe}}</em></li><br/>{%endif%}
+  		{% endfor %}
+  		</ul>
+  	</li>
+  	{% endfor%}
+  	</ol>
+  {% endif %}
+  
+  
+  {% if parser.motions %}
+  	<hr>
+  	<a name="MEMBERS' MOTIONS"></a>
+  	<h2>MEMBERS' MOTIONS</h2>
+  	<ul>
+  		{% for motion in parser.motions %}
+  			{% if motion.0 %}<h3><b>{{ motion.0 }}</b></h3> {% endif %}
+  			{% for speech in motion.1 %}
+  			<p>
+  				{% if speech.0 %}<li><b>{{speech.0}}</b> :{{ speech.1 |safe}}</li>
+  				{% else %} <li> <em>Event: </em> {{ speech.1 |safe}}</li>{% endif %}
+  			</p>
+  			{% endfor %}
+  			
+  		{% endfor%}
+  	</ul>
+  {% endif %}
+  
+  {% if parser.ce_q_and_a %}
+  <hr>
+  <a name="THE CHIEF EXECUTIVE'S QUESTION AND ANSWER SESSION"></a>
+  <h2>THE CHIEF EXECUTIVE'S QUESTION AND ANSWER SESSION</h2>
+  <ul>
+  	{% for speech in parser.ce_q_and_a%}
+  		<p>
+  			{% if speech.0 %}<li><b>{{speech.0}}</b> :{{ speech.1 |safe}}</li>
+  			{% else %} <li> <em>Event: </em> {{ speech.1 |safe}}</li>{% endif %}
+  		</p>
+  	{% endfor %}
+  <ul>
+  {% endif %}
+  
+  {% if parser.suspension %}
+  <hr>
+  <a name = "ENDING"></a>
+  <h2>ENDING</h2>
+  	{% for speech in parser.suspension%}
+  		<p>
+  			{% if speech.0 %}<li><b>{{speech.0}}</b> :{{ speech.1 |safe}}</li>
+  			{% else %} <li> <em>Event: </em> {{ speech.1 |safe}}</li>{% endif %}
+  		</p>
+  	{% endfor %}
+  {% endif %}
+  
+{% endblock content %}

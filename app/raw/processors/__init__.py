@@ -9,6 +9,7 @@ from raw.processors.library_member import LibraryMemberProcessor
 from raw.processors.question import QuestionProcessor
 from raw.processors.schedule import ScheduleMemberProcessor, ScheduleCommitteeProcessor, ScheduleMembershipProcessor, \
     ScheduleMeetingCommitteeProcessor, ScheduleMeetingProcessor
+from raw.processors.library_hansard import LibraryHansardProcessor
 from django.conf import settings
 
 
@@ -33,11 +34,13 @@ PROCESS_MAP = OrderedDict([
     # The below processors should be run in this order
     ('schedule_member', ScheduleMemberProcessor),
     ('schedule_committee', ScheduleCommitteeProcessor),
-    ('schedule_membership', ScheduleMembershipProcessor),
+    ('schedule_membership', ScheduleMembershipProcessor),#a lot of 'Could not find committee committee-dddd' warnings
     ('schedule_meeting_committee', ScheduleMeetingCommitteeProcessor),
     ('schedule_meeting', ScheduleMeetingProcessor),
     ('council_question', QuestionProcessor),
-    ('council_question_old', QuestionProcessor),
+    #('council_question_old', QuestionProcessor),#not implemented
+    #'council hansard' is depreciated
+    ('library_hansard', LibraryHansardProcessor), 
 ])
 
 
