@@ -2,7 +2,7 @@
 """
 This test is to found out if all fields of RawCouncilQuestion instances
 in the current database are assigned by parser (docs.question) upon view request.
-It does not cover 'old' questions before year 06-07, sice they do not have reply link.
+It does not cover 'old' questions before year 06-07, since they do not have reply link.
 Those old questions should be tested by hansard parser (in future).
 
 You may run
@@ -11,7 +11,7 @@ to write to testq.txt
 """
     
 from django.core.management import BaseCommand
-from raw.docs import question
+#from raw.docs import question
 from raw.models.raw import RawCouncilQuestion
 import logging
 

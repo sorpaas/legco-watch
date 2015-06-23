@@ -164,18 +164,19 @@ class CouncilHansard(object):
         
         # A very weird problem: sometimes an empty <p> block will cause the text below
         # <hr> line to be contained by extra <strong> box while trying to get rid of
-        # extra <hr>s below. So have to delete them here.
+        # extra <hr>s below. So have to delete them.
+        
+        # Get rid of some extra tags
         for xx in self.tree.xpath('//p'):
-            if (xx.text_content()=='' or xx.text_content()==' ' or xx.text_content() is None) and xx.getchildren() is None:
+            if (xx.text_content()=='' or xx.text_content()==' ' or xx.text_content() is None) and xx.getchildren() == []:
                 xx.drop_tree()
         
-        for xx in self.tree.xpath('.//em'):
-            if (xx.text_content()=='' or xx.text_content()==' ' or xx.text_content() is None) and xx.getchildren() is None:
+        for xx in self.tree.xpath('//em'):
+            if (xx.text_content()=='' or xx.text_content()==' ' or xx.text_content() is None) and xx.getchildren() == []:
                 xx.drop_tree()
-        
-        # Get rid of some extra <strong> tags
+                
         for xx in self.tree.findall('.//strong'):
-            if xx.text_content()=='' or xx.text_content()==' ' or  xx.text_content() is None:
+            if (xx.text_content()=='' or xx.text_content()==' ' or  xx.text_content() is None) and xx.getchildren() == []:
                 xx.drop_tree()
         
         for xx in self.tree.find_class('pydocx-tab'):
