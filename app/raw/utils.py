@@ -59,7 +59,10 @@ def doc_to_html(filepath, overwrite=False):
     html_file = '{}.html'.format(filepath)
     if not os.path.exists(html_file) or overwrite:
         cmd = ['abiword', '--to=html', '--to-name=fd://1', filepath]
-        res = subprocess.check_output(cmd)
+        try:
+            res = subprocess.check_output(cmd)
+        except:
+            return None
         with open(html_file, 'wb') as tmp:
             tmp.write(res)
     else:

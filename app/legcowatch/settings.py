@@ -34,7 +34,8 @@ CONTRIB_APPS = (
     'south',
     'rest_framework',
     'pipeline',
-    'debug_toolbar'
+    'debug_toolbar',
+    'django_extensions',
 )
 
 APPS = (
@@ -121,7 +122,7 @@ LOGGING = {
             'include_html': True
         },
         'console': {
-            'level': 'DEBUG',
+            'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'default'
         },
@@ -130,17 +131,17 @@ LOGGING = {
         'django': {
             'handlers': ['console'],
             'level': 'DEBUG',
-            'propagate': False
+            'propagate': True
         },
         'django.request': {
             'handlers': ['mail_admins', 'console'],
             'level': 'ERROR',
-            'propagate': True,
+            'propagate': True
         },
         'legcowatch': {
             'handlers': ['console'],
             'level': 'DEBUG',
-            'propagate': False
+            'propagate': True
         },
     }
 }

@@ -106,8 +106,8 @@ class LibraryHansardSpider(LegcoLibrarySpider):
                   #All hansards
                   #'http://library.legco.gov.hk:1080/search~S10/?searchtype=t&searcharg=Hong+Kong+Hansard'
                   
-                  #Limit to post-2015 for quick test
-                  'http://library.legco.gov.hk:1080/search~S10?/tHong+Kong+Hansard/thong+kong+hansard;Ya=2014/1%2C105%2C0%2CB/browse'
+                  #Limit to post-20xx for quick test
+                  'http://library.legco.gov.hk:1080/search~S10?/tHong+Kong+Hansard/thong+kong+hansard;Ya=2010/1%2C105%2C0%2CB/browse'
                   ]
     def parse(self, response):
         sel = Selector(response)
@@ -154,7 +154,7 @@ class LibraryHansardSpider(LegcoLibrarySpider):
         # But a lot of exceptions, especially for older records
         # Some longer records spread more that one DOC,
         # newer records may only have floor version available (sometimes the name floor is omitted),
-        # some hansard may have appendix (not sure)
+        # some hansard may have appendix (image in DOC file)
         # and in a rare case on 2006.08.05 all links link to PDFs, probably a mistake
         links = zip(links_title, file_urls)
 

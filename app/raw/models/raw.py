@@ -144,6 +144,8 @@ class RawCouncilHansard(RawModel):
     # Sometimes due to bandwidth/connection, file may fail to be downloaded
     local_filename = models.CharField(max_length=255, blank=True, null=True)
     
+    UID_PREFIX = 'council_hansard'
+    
     class Meta:
         ordering=['-uid']
         app_label = 'raw'
@@ -166,17 +168,34 @@ class RawCouncilHansard(RawModel):
             # Cannot handle PDF
             src = None
         else:
-            raise NotImplementedError(u"Unexpected filetype for uid {}".format(self.uid))
+            #raise NotImplementedError(u"Unexpected filetype for uid {}".format(self.uid))
+            logger.error(u"Unexpected filetype for uid {}. Filetype got: '{}'".format(self.uid,filetype))
+            src = None
         return src
     
+    
+    def get_lang_counterpart(self):
+        #Given a hansard instance, return the instance in another language
+        try:
+            if self.uid[-1]==u'e':
+                return RawCouncilHansard.objects.get_by_uid(self.uid[:-1]+u'c')
+            elif self.uid[-1]==u'c':
+                return RawCouncilHansard.objects.get_by_uid(self.uid[:-1]+u'e')   
+        except:
+            return None
+        
+        
     def get_parser(self):
         """
         Returns the parser for this RawCouncilansard object
         """
         src = self.get_source()
         lang = self.language
+        date = self.raw_date
+        if src is None:
+            return None
         try:
-            return CouncilHansard(self.uid, lang, src)
+            return CouncilHansard(self.uid, lang, src, date)
         except BaseException as e:
             logger.warn(u'Could not parse hansard for {}'.format(self.uid))
             logger.warn(e)
@@ -390,10 +409,10 @@ class RawCouncilQuestion(RawModel):
             if self.number != agenda_number:
                 logger.warn(u"{} Question numbers don't match: {} vs {}".format(self.uid, self.number, agenda_number))
         except ValueError:
-            logger.warn("u{} Question numbers don't match: {} vs {}".format(self.uid, self.number, agenda_number))
+            logger.warn(u"{} Question numbers don't match: {} vs {}".format(self.uid, self.number, agenda_number))
         # Check type
         if self.is_oral and agenda_question.type != AgendaQuestion.QTYPE_ORAL:
-            logger.warn("u{} Question types don't match: {} vs {}".format(self.uid, u'Oral' if self.is_oral else u'Written', u'Oral' if agenda_question.type == AgendaQuestion.QTYPE_ORAL else u'Written'))
+            logger.warn(u"{} Question types don't match: {} vs {}".format(self.uid, u'Oral' if self.is_oral else u'Written', u'Oral' if agenda_question.type == AgendaQuestion.QTYPE_ORAL else u'Written'))
     
     ##### added for new model- lpounng #####
     def full_local_filename(self):
@@ -445,9 +464,9 @@ class RawCouncilQuestion(RawModel):
     @classmethod
     def fix_asker_by_parser(cls):
         """
-        Loop over all questions without an asker FK, and attempt to use parser to fix it.
+        Loop over all questions without an asker Foreign Key, and attempt to use parser to fix it.
         Returns a list of UIDs of questions still without an asker.
-        Advise to run this after saving questions with processor.
+        Advise to run this after saving questions to database with processor.
         """
         matcher_en = RawMember.get_matcher()
         matcher_cn = RawMember.get_matcher(False)

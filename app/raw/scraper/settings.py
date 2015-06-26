@@ -56,5 +56,5 @@ HTTPCACHE_DIR = os.path.join(DATA_DIR_BASE, 'httpcache')
 HTTPCACHE_POLICY = 'scrapy.contrib.httpcache.RFC2616Policy'
 
 # Allow more bandwidth and time for downloading large files (e.g. Hansard)
-CONCURRENT_REQUESTS = 8 #default 16
-DOWNLOAD_TIMEOUT = 600 #default 180 (sec)
+CONCURRENT_REQUESTS = 5 #default 16
+DOWNLOAD_TIMEOUT = 1200 #default 180 (sec)
