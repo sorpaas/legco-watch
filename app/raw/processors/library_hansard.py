@@ -87,6 +87,9 @@ class LibraryHansardProcessor(BaseProcessor):
             #language = language # 0,1 or 2
             url = item['links'][i][1]
             local_filename = self._get_local_filename(url, item) #"full/..."
+            # Sometimes the file
+            
+            
             if local_filename is None:
                 # Sometimes due to bandwidth/connection, file may fail to be downloaded
                 logger.warn(u'Problem with local_filename of item: {}\nLink: {}'.format(title,url))

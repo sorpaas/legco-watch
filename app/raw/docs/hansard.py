@@ -36,6 +36,8 @@ TABLED_PAPERS_e = 'TABLING OF PAPERS'
 TABLED_PAPERS_c = u'提交文件'
 ADDRESSES_c = u'發言'
 ADDRESSES_e = 'ADDRESSES'
+URGENT_QUESTIONS_e = 'QUESTIONS UNDER RULE 24(4) OF THE RULES OF PROCEDURE'
+URGENT_QUESTIONS_c = u'根據《議事規則》第24(4)條提出的質詢'
 ORAL_QUESTIONS_e = 'ORAL ANSWERS TO QUESTIONS'
 ORAL_QUESTIONS_c = u'議員質詢的口頭答覆'
 WRITTEN_QUESTIONS_e = 'WRITTEN ANSWERS TO QUESTIONS'
@@ -60,8 +62,8 @@ NEXT_MEETING_c = u'下次會議'
 ADJOURNMENT_e = 'ADJOURNMENT OF MEETING'
 ADJOURNMENT_c = u'休會'
 
-LIST_OF_HEADERS_e = [TABLED_PAPERS_e,ADDRESSES_e,ORAL_QUESTIONS_e,WRITTEN_QUESTIONS_e,MOTIONS_e1,MOTIONS_e2,BILLS_e,STATEMENTS_e,CE_Q_AND_A_e,SUSPENSION_e,NEXT_MEETING_e,ADJOURNMENT_e]
-LIST_OF_HEADERS_c = [TABLED_PAPERS_c,ADDRESSES_c,ORAL_QUESTIONS_c,WRITTEN_QUESTIONS_c,MOTIONS_c1,MOTIONS_c2,BILLS_c,STATEMENTS_c,CE_Q_AND_A_c,SUSPENSION_c,NEXT_MEETING_c,ADJOURNMENT_c]
+LIST_OF_HEADERS_e = [TABLED_PAPERS_e,ADDRESSES_e,URGENT_QUESTIONS_e,ORAL_QUESTIONS_e,WRITTEN_QUESTIONS_e,MOTIONS_e1,MOTIONS_e2,BILLS_e,STATEMENTS_e,CE_Q_AND_A_e,SUSPENSION_e,NEXT_MEETING_e,ADJOURNMENT_e]
+LIST_OF_HEADERS_c = [TABLED_PAPERS_c,ADDRESSES_c,URGENT_QUESTIONS_c,ORAL_QUESTIONS_c,WRITTEN_QUESTIONS_c,MOTIONS_c1,MOTIONS_c2,BILLS_c,STATEMENTS_c,CE_Q_AND_A_c,SUSPENSION_c,NEXT_MEETING_c,ADJOURNMENT_c]
 #<hr></hr> or </hr>
 
 # some footnotes may follow
@@ -98,19 +100,21 @@ class CouncilHansard(object):
         self.tabled_papers = None
         self.tabled_legislation = None
         self.tabled_other_papers = None
+        self.urgent_questions = None
         self.oral_questions = None
         self.oral_questions_map = None
         self.written_questions = None
         self.written_questions_map = None
         self.bills = None
         self.motions = None
-        self.ce_q_and_a = None
-        
+        self.ce_q_and_a = None        
         self.suspension = None #sometimes contain extra info as well as next meeting schedule.
         ## There may exist an <hr> line separating content and footnote.
         self.other = None
         
         self.sections = [] #store the keys of SECTION_MAP here
+        
+        self._count_errors = 0
         
         self._load()
         self._clean()
@@ -312,6 +316,7 @@ class CouncilHansard(object):
             LIST_OF_HEADERS = LIST_OF_HEADERS_c
         else:
             logger.error(u'The Hansard parser cannot handle Floor Recording:{}'.format(self.uid))
+            self._count_errors+=1
             return None
         logger.info(u'Language: {}'.format(self.language))
         
@@ -395,6 +400,10 @@ class CouncilHansard(object):
             #elif section == globals()['TABLED_PAPERS_{}'.format(lang_char)]: #also works
                 logger.info(u'Parsing TABLED_PAPERS...')
                 self._parse_tabled_papers(SECTION_MAP[section])
+                logger.info(u'Done.')
+            elif section == eval('URGENT_QUESTIONS_{}'.format(lang_char)):
+                logger.info(u'Parsing URGENT_QUESTIONS...')
+                self._parse_urgent_questions(SECTION_MAP[section])
                 logger.info(u'Done.')
             elif section == eval('ORAL_QUESTIONS_{}'.format(lang_char)):
                 logger.info(u'Parsing ORAL_QUESTIONS...')
@@ -598,6 +607,7 @@ class CouncilHansard(object):
                 #print(officers_position_str)
                 if len(officers_name_str)!=len(officers_position_str):
                     logger.error(u'Number of officers does not match number of positions- {}:{}'.format(len(officers_name_str),(officers_position_str)))
+                    self._count_errors+=1
                     self.public_officers = None
                 else:
                     #officers are not in member list (RawMember), so only get their name and title
@@ -635,6 +645,7 @@ class CouncilHansard(object):
                             tmp_list.append((match.group('name'),officers_title,match.group('position')))
                         else:
                             logger.error(u'Unrecogised string for officers: {}'.format(officers_name))
+                            self._count_errors+=1
                             #tmp_list.append((officers_name,officers_title,''))
                         
                 self.public_officers = tmp_list
@@ -803,7 +814,7 @@ class CouncilHansard(object):
                         # sometimes a row is empty...
                         if text_cnt != 0:
                             # ... else we log it
-                            logger.error(u'Wrong number of columns found. Expected 2, but get {}'.format(text_cnt))
+                            logger.warn(u'Wrong number of columns found. Expected 2, but get {}'.format(text_cnt))
                     else:
                         legislation_list.append(tuple(text_list))
         
@@ -935,6 +946,19 @@ class CouncilHansard(object):
     # Output a question_obj - a list of 3-tuples:
     # [(Question number, Question title, Question content), ...] 
     ####################################################
+    def _parse_urgent_questions(self,elem_list):
+        if elem_list[0].text_content().strip().startswith(u'主席') or\
+        elem_list[0].text_content().strip().startswith(u'PRESIDENT'):
+            logger.warn(u'Message(s) found before questions.')
+            elem_list = elem_list[1:]
+        
+        if self.language==LANG_EN:
+            self.urgent_questions = self._parse_answers_to_questions_e(elem_list)
+        elif self.language==LANG_CN:
+            self.urgent_questions = self._parse_answers_to_questions_c(elem_list)
+        #self.oral_questions_map = self._build_question_map(self.oral_questions)
+    
+    
     def _parse_oral_answers_to_questions(self,elem_list):
         """
         Choose parser for oral_answers_to_questions according to language
@@ -1019,6 +1043,17 @@ class CouncilHansard(object):
                         # Remove that number
                         elem.text = None
                         break
+                # In some rare cases the number is enclosed by a <strong> box, like the ones in Chinese version
+                elif elem.tag == 'p' and elem.getchildren() is not None:
+                    if elem.getchildren() != []:
+                        tmp_potential_num_box = elem.getchildren()[0]
+                        if tmp_potential_num_box.tag == 'strong' and tmp_potential_num_box.text is not None:
+                            if tmp_potential_num_box.text.replace('.','').strip().isdigit():
+                                # Found a number enclosed by <strong>
+                                list_q_num.append(tmp_potential_num_box.text.replace('.','').strip())
+                                tmp_potential_num_box.drop_tree()
+                                break
+            
             else:
                 # Cannot find question number. Assume 0.
                 logger.warn(u'Cannot find a question number for title: {}'.format(q[0]))
@@ -1026,7 +1061,7 @@ class CouncilHansard(object):
         
         # Check if list_q_num and list_of_questions are equal length
         if len(list_q_num)!=len(list_of_questions):
-            logger.error(u"Unequal number of questions and question numbers.")
+            logger.warn(u"Unequal number of questions and question numbers.")
         
         # Deliberately decouple this loop with previous one for debugging.
         # We have the question title and number, now parse the Q&A content and dialogs
@@ -1034,11 +1069,11 @@ class CouncilHansard(object):
         question_obj = []
         tmp_cnt = 0
         for q in list_of_questions:
-            print tmp_cnt
             try:
                 question_obj.append((list_q_num[tmp_cnt],q[0],self.parse_dialogs(q[1],disable_event)))
             except:
                 logger.error(u'Cannot parse dialogs for question number:{} with title "{}".'.format(list_q_num[tmp_cnt],q[0]))
+                self._count_errors+=1
                 question_obj.append((list_q_num[tmp_cnt],q[0],u'<p>ERROR_PARSING_BODY</p>'))
             tmp_cnt +=1
         
@@ -1160,11 +1195,12 @@ class CouncilHansard(object):
                 if elem.tag == 'p' and elem.xpath('./strong')!=[]:
                     # Some texts inside strong box. Check for integer.
                     first_strong_box = elem.xpath('./strong')[0]
-                    if first_strong_box.text.replace('.','').strip().isdigit():
-                        list_q_num.append(first_strong_box.text.replace('.','').strip())
-                        # Remove that box
-                        first_strong_box.drop_tree()
-                        break
+                    if first_strong_box.text is not None:
+                        if first_strong_box.text.replace('.','').strip().isdigit():
+                            list_q_num.append(first_strong_box.text.replace('.','').strip())
+                            # Remove that box
+                            first_strong_box.drop_tree()
+                            break
             else:
                 # Cannot find question number. Assume 0.
                 logger.warn(u'Cannot find a question number for title: {}'.format(q[0]))
@@ -1607,7 +1643,7 @@ class CouncilHansard(object):
                     if strong_boxes[1].xpath('preceding-sibling::*[1]')[0] == strong_boxes[0]\
                     and strong_boxes[0].tail is None and\
                     strong_boxes[0].tag == 'strong' and strong_boxes[1].tag == 'strong':
-                        if strong_boxes[0].text is not None:
+                        if strong_boxes[0].text is not None and strong_boxes[1].text is not None:
                             strong_boxes[0].text += strong_boxes[1].text
                         else:
                             strong_boxes[0].text = strong_boxes[1].text
@@ -1700,6 +1736,7 @@ class CouncilHansard(object):
                     list_members.append((name_string,full_name))
                 else:
                     logger.error(u'Cannot find the name for member string: {}'.format(member_str))
+                    self._count_errors+=1
                     continue
                     #store only full name+titles
                     #list_members.append(('',full_name))

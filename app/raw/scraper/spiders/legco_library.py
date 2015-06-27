@@ -96,6 +96,7 @@ class LibraryAgendaSpider(LegcoLibrarySpider):
         logger.info('Scraped {}'.format(title_en))
         yield item
 
+
 class LibraryHansardSpider(LegcoLibrarySpider):
     name = "library_hansard"
     start_urls = [
