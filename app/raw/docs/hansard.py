@@ -55,6 +55,7 @@ STATEMENTS_c = u'聲明'
 CE_Q_AND_A_e = "THE CHIEF EXECUTIVE'S QUESTION AND ANSWER SESSION"
 CE_Q_AND_A_c = u'行政長官答問會'
 
+#Ending
 SUSPENSION_e = 'SUSPENSION OF MEETING'
 SUSPENSION_c = u'暫停會議'
 NEXT_MEETING_e = 'NEXT MEETING'
@@ -269,7 +270,8 @@ class CouncilHansard(object):
                 children = p.getchildren()
                 if len(children)>1:
                     for child in children:
-                        if child.tag!='strong' or child.tail is not None:#if other stuffs present, break
+                        if child.tag!='strong' or (child.tail is not None and child.tail!=u"'"):#if other stuffs present, break
+                        #if child.tag!='strong' or child.tail is not None:
                             break
                     else:
                         # Found a <p> block to fix
@@ -703,6 +705,8 @@ class CouncilHansard(object):
         
     
     def _parse_tabled_papers(self,elem_list):
+        BEGINNING_E = u'The following papers were laid'
+        BEGINNING_C = u'下列文件是根據'
         LEGISLATION_E = u'Subsidiary Legislation'
         LEGISLATION_C = u'附屬法例'
         OTHER_PAPERS_E = u'Other Paper'
@@ -711,6 +715,7 @@ class CouncilHansard(object):
             self.tabled_papers = None
             return
         
+        BEGINNING = BEGINNING_E if self.language==2 else BEGINNING_C
         LEGISLATION = LEGISLATION_E if self.language==2 else LEGISLATION_C
         OTHER_PAPERS = OTHER_PAPERS_E if self.language==2 else OTHER_PAPERS_C
         
@@ -724,116 +729,168 @@ class CouncilHansard(object):
         # Shall no table found, these two sections can be distinguished by their text content,
         # as a last resort.
         
-        # Firstly, check if the section contains exactly two tables. If true, we do not have to
-        # work too hard.
+        # Get rid of the first line
+        # Be careful that the first elem may not be the beginning sentence.
+        for elem in elem_list:
+            if elem.text_content().strip().startswith(BEGINNING):
+                elem_list.remove(elem)
+                break
+            else:
+                # do not need anything before that statement (usually extra tag)
+                elem_list.remove(elem)
+                
+        # Check if the section contains exactly two tables. If true, we do not have to
+        # work so hard
         table_list = []
         for elem in elem_list:
             if elem.tag == u'table':
                 table_list.append(elem)
-                
+        logger.info(u'Found {} tables.'.format(len(table_list)))
+        
         if len(table_list) == 2:
-            self.tabled_legislation = self._parse_legislation_table(table=table_list[0])
-            self.tabled_other_papers = self._parse_other_papers_table(table=table_list[1])
-        elif len(table_list) == 1:
-            # Usually this table is Legislation table.
-            self.tabled_legislation = self._parse_legislation_table(table=table_list[0])
-            # Look for Other Papers
-            other_paper_elem = None
-            for i in range(len(elem_list)):
-                if elem_list[i].text_content().strip().startswith(OTHER_PAPERS):
-                    # Found Other Paper section
-                    other_paper_elem = elem_list[i+1:]
-                    break
-            self.tabled_other_papers = self._parse_other_papers_table(elem_list=other_paper_elem)
-        else:
-            # Cannot find any table element (rarely the case for recent Hansard)
-            # Need to separate two sections carefully.
-            # Firstly, see if we can find the titles for two sections
-            legislation_elem_list = []
-            other_papers_elem_list = []
-            section_flag = 0
-            for elem in elem_list:
-                if elem.text_content().strip().startswith(LEGISLATION):
-                    # Found 'Subsidiary Legislation' section
-                    section_flag = 1
-                    continue
-                elif elem.text_content().strip().startswith(OTHER_PAPERS):
-                    # Found 'Other Papers' section
-                    section_flag = 2
-                    continue
-                if section_flag == 1:
-                    legislation_elem_list.append(elem)
-                elif section_flag == 2:
-                    other_papers_elem_list.append(elem)
-            # Pass to parser
-            self.tabled_legislation = self._parse_legislation_table(elem_list=legislation_elem_list)
-            self.tabled_other_papers = self._parse_other_papers_table(elem_list=other_papers_elem_list)
-        # Finally, put all papers together.
-        self.tabled_papers = [self.tabled_legislation,self.tabled_other_papers]
+            # Best result, two tables
+            self.tabled_legislation = self._parse_legislation_table(table_list[0])
+            self.tabled_other_papers = self._parse_other_papers_table(table_list[1])
+            #self.tabled_papers = [self.tabled_legislation,self.tabled_other_papers]
+            return
         
         
-    def _parse_legislation_table(self,table=None,elem_list=None):
+        # Otherwise, loop through to see if headers text exist
+        legis_elem = []
+        other_elem = []
+        current_section = 0 #0 for nothing, 1 for Legislation, 2 for Other
+        for elem in elem_list:
+            if elem.text_content().strip().startswith(LEGISLATION):
+                current_section = 1
+                continue
+            elif elem.text_content().strip().startswith(OTHER_PAPERS):
+                current_section = 2
+                continue
+            if current_section == 1:
+                legis_elem.append(elem)
+            elif current_section == 2:
+                other_elem.append(elem)
+        # Pass content to parsers
+        if current_section != 0:
+            if legis_elem !=[]:
+                self.tabled_legislation = self._parse_legislation_table(legis_elem)
+            if other_elem !=[]:
+                self.tabled_other_papers = self._parse_other_papers_table(other_elem)
+            #self.tabled_papers = [self.tabled_legislation,self.tabled_other_papers]
+            return
+        
+        ###
+        # Headers do not exist, and less than 2 tables found. 
+        # This is the hardest case, and sometimes even the order is reversed 
+        # (Other Papers appears before Legislation)
+        
+        # Firstly, check if any table exists at all
+        if len(table_list) == 1:
+            current_table = table_list[0]
+            for row in current_table.xpath('.//tr'):
+                if row.xpath('./td') is not None:
+                    if len(row.xpath('./td')) == 1:
+                        # Cannot determine
+                        continue
+                    elif len(row.xpath('./td')) == 3:
+                        if row.xpath('./td')[0].text_content()==u'':
+                            continue
+                        # check the middle block. If there is something inside, it is Other Papers
+                        elif row.xpath('./td')[1].text_content().strip()!=u'':
+                            # Table is Other Paper
+                            # So the table and all elements following it will be Other Papers
+                            self.tabled_other_papers = self._parse_other_papers_table(elem_list)
+                            current_table.drop_tree()
+                            return
+                        else:
+                            self.tabled_legislation = self._parse_legislation_table(current_table)
+                            current_table.drop_tree()
+                            break
+                    elif len(row.xpath('./td')) == 2:
+                        # Legislation table
+                        self.tabled_legislation = self._parse_legislation_table(current_table)
+                        current_table.drop_tree()
+                        break
+                    else:
+                        logger.error(u"Unrecognised table format with {} columns.".format(len(row.xpath('./td'))))
+                        return
+            
+        # If we get here, everything that remain will be Other Papers
+        self.tabled_other_papers = self._parse_other_papers_table(elem_list)
+        
+        
+    def _parse_legislation_table(self,elem_list):
         # Chinese and English tables have different characteristics
         # which can be used for our advantage
         # Each Subsidiary Legislation/Instruments item has a title and a L.N. No.(法律公告編號)
         # In Chinese titles are enclosed with '《》' but ones in English do not
+        # Assume all legislation papers are in table
         
-        if elem_list is not None and table is None:
-            #Currently not seen, and is thus not supported
-            # may need this later
-            logger.warn(u'_parse_legislation_table method currently support only table.')
+        logger.info(u'Parsing legislation table...')
+        if elem_list is None:
             return None
-        elif elem_list is None and table is None:
+        
+        table = None
+        # If there is a table, we work on it only
+        for elem in elem_list:
+            if elem.tag == 'table':
+                table = elem
+            break
+        else:
+            # Cannot find any table
+            logger.error(u'Cannot find a table for legislation.')
             return None
-        elif table is not None:
+
+
+        legislation_list = []
+        if table is not None:
             # Each entry is enclosed by <tr></tr>, with each block in a <td></td>
             # Normally English tables have 2 column while Chinese have 3, with one in middle blank.
             # Nonetheless, check for all number of columns, and be careful of empty rows.
-            legislation_list = []
             entries = table.xpath('.//tr')
             for tr in entries: # each tr is a tabled paper item
                 tds = tr.xpath('./td') # there should normally be 2 td, as 2 columns
                 if len(tds) < 2:
-                    # just ignore
+                    # empty line, just ignore
                     continue
-                elif len(tds) == 2: # best format
+                elif len(tds) == 2: # best format, but can be empty row
                     if tds[0].text_content().strip() != u'' and tds[0].text_content().strip() is not None:
                         legislation_list.append((tds[0].text_content().strip(),tds[1].text_content().strip()))
                     else:
                         # empty line
                         continue
                 elif len(tds) > 2:
-                    #loop over all td, see if only 2 columns has text
-                    text_cnt = 0
-                    text_list = []
-                    for td in tds:
-                        if td.text_content().strip() != '' and td.text_content().strip() is not None:
-                            text_list.append(td.text_content().strip())
-                            text_cnt+=1
-                    if text_cnt !=2:
-                        # sometimes a row is empty...
-                        if text_cnt != 0:
-                            # ... else we log it
-                            logger.warn(u'Wrong number of columns found. Expected 2, but get {}'.format(text_cnt))
+                    #get the first and last cell only
+                    if tds[0].text_content().strip() != u'' and tds[0].text_content().strip() is not None:
+                        legislation_list.append((tds[0].text_content().strip(),tds[-1].text_content().strip()))
                     else:
-                        legislation_list.append(tuple(text_list))
-        
+                        # sometimes a row is empty
+                        continue
+
         #print len(legislation_list)
         #for entry in legislation_list:
         #    print entry[0],u' - ',entry[1]
         return legislation_list
     
     
-    def _parse_other_papers_table(self,table=None,elem_list=None):
+    def _parse_other_papers_table(self,elem_list):
         """
         Parser for Other Papers portion of Tabling of Papers section.
         """
-        paper_list = []
-        if elem_list is None and table is None:
+        
+        logger.info(u'Parsing Other Papers...')
+        
+        if elem_list is None:
             return None
-        if elem_list is not None and table is not None:
-            logger.warn(u'_parse_other_papers_table method needs only one input. Default to use table.')
-            elem_list = None
+        
+        table = None
+        # If there is a table, we work on it directly
+        for elem in elem_list:
+            if elem.tag == 'table':
+                table = elem
+                break
+            
+        paper_list = []
         if table is not None:
             # table for Other Papers are 3-columns, with middle column contains a dash only.
             # so we only need the first and last one.
@@ -846,6 +903,7 @@ class CouncilHansard(object):
                 if len(entry.xpath('./td'))==3 or len(entry.xpath('./td'))==2:
                     # Normal case
                     paper_no = entry.xpath('./td')[0].text_content().strip()
+                    
                     paper_title_and_content = entry.xpath('./td')[-1]
                     # Add a '\n' for evert <br> tag encountered so Python can recognize as newline
                     for br in paper_title_and_content.xpath('.//br'):
@@ -855,30 +913,99 @@ class CouncilHansard(object):
                     paper_title_and_content = paper_title_and_content.text_content().splitlines()
                     if len(paper_title_and_content)==2:
                         # One title and one content
-                        paper_no = None
                         paper_title = paper_title_and_content[0].strip()
                         paper_content = paper_title_and_content[1].strip()
                     else:
-                        #Cannot work out. Just assume it is a title
-                        paper_no = None
+                        #Cannot work out. Just assume everything is title
                         paper_title = paper_title_and_content[0].strip()
-                        paper_content = None
+                        paper_content = u''
                     # Save
                     paper_list.append((paper_no,paper_title,paper_content))
                 elif len(entry.xpath('./td'))==1:
-                    # Just a title
+                    # One column only, just a title
                     paper_title = entry.xpath('./td')[0].text_content().strip()
-                    paper_list.append((None,paper_title,None))
+                    paper_list.append((None,paper_title,u''))
                 else:
                     logger.warn(u'Unrecognised number of columns. Expected 1, 2 or 3, got {}.'.format(len(entry.xpath('./td'))))
-        elif elem_list is not None:
+            paper_no = None
+            elem_list.remove(table)
+            
+        
+        # Even if there is a table, there may be item(s) not in it.
+        # And for Chinese Hansard, Other Papers section usually is not in a formal table.
+        if elem_list != []:
+            # Non-table papers.
+            
             # Very tricky to tell which new <p> is a new paper and which is a continuation of previous one.
             # Usually the case for Chinese hansards.
             # Strategy is: keep looping for text with format '第xx號' until
             # A. another such pattern is met; or
             # B. a line with enclosed with blankets, i.e. '(xxx)'
             paper_pattern = ur'^(?P<num>第(.+)號) [―|─] (?P<title>.+)'
-            paper_list = []
+            block_list = [] # A list of blocks(list of elem)
+            tmp_container = []
+            # Divide the list into blocks according to pattern
+            for elem in elem_list:
+                #print elem.text_content()
+                match = re.match(paper_pattern,elem.text_content().strip())
+                if match is not None:
+                    #print('a match')
+                    # A new paper heading
+                    # Save the previous block
+                    if tmp_container!=[]:
+                        block_list.append(tmp_container)
+                        tmp_container = []
+                # Put new content into temp container (regardlessly)
+                tmp_container.append(elem)
+            # Save the last block if necessary
+            if tmp_container!=[]:
+                block_list.append(tmp_container)
+            
+            #print block_list
+            #print len(block_list)
+            
+            # All blocks are processed in same way except the last one,
+            # which may contain papers not in format as 第xx號 - XXXX
+            # Usually these are single-line paper titles
+            if len(block_list)>1:
+                # Handle all except the last block. Each block is one paper.
+                for block in block_list[:-1]:
+                    # The title is in same line with paper number, a.k.a. the first element
+                    # anything remaining are extra information
+                    match = re.match(paper_pattern,block[0].text_content().strip()) # we knew that will match
+                    paper_no = match.group('num')
+                    paper_title = match.group('title')
+                    paper_content = u''
+                    if len(block)>1: # there are extra content in paper
+                        for elem in block[1:]:
+                            paper_content+=elem.text_content().strip()
+                    # Save
+                    paper_list.append((paper_no, paper_title, paper_content))
+                  
+            # Handle the last (or the only) block
+            block = block_list[-1]
+            #print block[0].text_content()
+            # Again, try to match 第xx號 - XXXX pattern
+            match = re.match(paper_pattern,block[0].text_content().strip())
+            if match is None:
+                # Simplest case, just loop over all titles and put into list
+                for elem in block:
+                    paper_title = elem.text_content().strip()
+                    paper_list.append((None, paper_title, u''))
+            else:
+                #print('match')
+                # One paper (optionally) followed by many
+                # We could use 'tab' tags for splitting them, but we removed these tags in pre-processing
+                # So the best bet is to assume 1 row of extra content
+                paper_no = match.group('num')
+                paper_title = match.group('title')
+                paper_content = block[1].text_content().strip()
+                # Check whether this paper has extra content
+                for elem in block[2:]:
+                    paper_list.append((None,elem.text_content().strip(),u''))
+
+            """
+            paper_pattern = ur'^(?P<num>第(.+)號) [―|─] (?P<title>.+)'
             paper_title = None
             paper_content = ''
             for elem in elem_list:
@@ -927,7 +1054,8 @@ class CouncilHansard(object):
                     paper_content+=elem.text_content().strip()
                 else:
                     paper_title = elem.text_content().strip()
-            # last entry
+                    
+            # save last entry
             if paper_title is not None:
                 try:
                     paper_list.append((paper_no,paper_title,paper_content))
@@ -938,7 +1066,7 @@ class CouncilHansard(object):
         #for item in paper_list:
         #    print cnt,item[0],u': ',item[1],u' -- ',item[2]
         #    cnt+=1
-        
+            """
         return paper_list
     
     ####################################################
@@ -953,9 +1081,9 @@ class CouncilHansard(object):
             elem_list = elem_list[1:]
         
         if self.language==LANG_EN:
-            self.urgent_questions = self._parse_answers_to_questions_e(elem_list)
+            self.urgent_questions = self._parse_answers_to_questions_e(elem_list,allow_zero=True)
         elif self.language==LANG_CN:
-            self.urgent_questions = self._parse_answers_to_questions_c(elem_list)
+            self.urgent_questions = self._parse_answers_to_questions_c(elem_list,allow_zero=True)
         #self.oral_questions_map = self._build_question_map(self.oral_questions)
     
     
@@ -993,7 +1121,7 @@ class CouncilHansard(object):
             self.written_questions = self._parse_answers_to_questions_c(elem_list,disable_event= True)
         self.written_questions_map = self._build_question_map(self.written_questions)
 
-    def _parse_answers_to_questions_e(self,elem_list,disable_event = False):
+    def _parse_answers_to_questions_e(self,elem_list,disable_event = False, allow_zero=False):
         """
         Parse English xxx_answers to questions.
         """
@@ -1055,9 +1183,14 @@ class CouncilHansard(object):
                                 break
             
             else:
-                # Cannot find question number. Assume 0.
-                logger.warn(u'Cannot find a question number for title: {}'.format(q[0]))
-                list_q_num.append('0')
+                # Cannot find question number. 
+                if allow_zero:
+                #Assume 0.
+                    logger.warn(u'Cannot find a question number for title: {}'.format(q[0]))
+                    list_q_num.append('0')
+                else:
+                    logger.error(u'Cannot find a question number for title: {}'.format(q[0]))
+                    list_q_num.append(None)
         
         # Check if list_q_num and list_of_questions are equal length
         if len(list_q_num)!=len(list_of_questions):
@@ -1138,7 +1271,7 @@ class CouncilHansard(object):
         """
         
         
-    def _parse_answers_to_questions_c(self,elem_list,disable_event = False):
+    def _parse_answers_to_questions_c(self,elem_list,disable_event = False,allow_zero=False):
         """
         Parser for Chinese xxx_answers_to_questions section.
         """
@@ -1202,10 +1335,15 @@ class CouncilHansard(object):
                             first_strong_box.drop_tree()
                             break
             else:
-                # Cannot find question number. Assume 0.
-                logger.warn(u'Cannot find a question number for title: {}'.format(q[0]))
-                list_q_num.append('0')
-            
+                # Cannot find question number. 
+                if allow_zero:
+                #Assume 0.
+                    logger.warn(u'Cannot find a question number for title: {}'.format(q[0]))
+                    list_q_num.append('0')
+                else:
+                    logger.error(u'Cannot find a question number for title: {}'.format(q[0]))
+                    list_q_num.append(None)
+                    
         # Pass the content to parse_dialogs()
         question_obj = []
         tmp_cnt = 0
