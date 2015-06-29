@@ -11,6 +11,10 @@ import subprocess
 #import pydocx
 from pydocx import PyDocX
 import os
+import lxml.etree
+import lxml.html
+from lxml.html import HTMLParser
+from lxml.html.clean import clean_html,Cleaner
 
 
 HTML = 1
@@ -138,3 +142,42 @@ def utf2html(ustring):
     ustring = ustring.replace('\n','<br><br />')
     ustring = ustring.replace('\t','    ')
     return ustring
+
+def merge_docx(docx_list=None, out_htmlpath = None, file_out = True):
+    """
+    docx_list is a list of strings which contains the (absolute) path of DOC/DOCX files to be merged.
+    MERGE_DOCX() will follow the index order of docx_list for appending.
+    Returns the HTML file as string, and 
+    """
+    if docx_list is None:
+        return None
+    
+    cleaner = Cleaner()
+    parser = HTMLParser(encoding='utf-8')
+    html_list = []
+    for path in docx_list:
+        try:
+            tmp_html =  PyDocX.to_html(path)
+            html_list.append(cleaner.clean_html(lxml.html.fromstring(tmp_html, parser=parser)))
+        except:
+            break
+    
+    if len(html_list)>1:
+        #Append element at the end of first body
+        main_body = html_list[0].xpath('./body')[0]
+        for tree in html_list[1:]:
+            elem_list = tree.xpath('./body/*')
+            for elem in elem_list:
+                main_body.append(elem)
+        
+    # Convert ElementTree back to string
+    # in this way we will lose the 'style' info in html_list[0][0], which is usually in header,
+    # but not sure if it will cause any differences to parser later on. Probably not.
+    html_str = lxml.etree.tostring(main_body)
+    
+    if file_out:
+        with open(out_htmlpath, 'wb') as tmp:
+            tmp.write(html_str.encode('utf-8'))
+                
+    return html_str
+        

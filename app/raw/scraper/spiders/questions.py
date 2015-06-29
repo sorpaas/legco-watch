@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Scraper for Council Meeting Questions
-
+Spider name: council_question
 From http://www.legco.gov.hk/yr13-14/english/counmtg/question/ques1314.htm#toptbl, for example
 """
 from lxml.html import HTMLParser

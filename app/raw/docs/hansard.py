@@ -165,7 +165,6 @@ class CouncilHansard(object):
         parser = HTMLParser(encoding='utf-8')
         # Finally, load the cleaned string to an ElementTree
         self.tree = cleaner.clean_html(lxml.html.fromstring(to_string(self.source), parser=parser))
-        # self.tree = lxml.html.fromstring(to_string(self.source))
         
         logger.info(u'Finished _load().')
     
