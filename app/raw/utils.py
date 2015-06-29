@@ -17,7 +17,7 @@ HTML = 1
 DOC = 2
 DOCX = 3
 PDF = 4
-
+#ZIP = 5
 
 def list_spiders():
     settings = get_project_settings()
@@ -44,6 +44,9 @@ def check_file_type(filepath, as_string=False):
         return DOCX if not as_string else 'DOCX'
     elif 'PDF' in filetype:
         return PDF if not as_string else 'PDF'
+    elif filetype[0:3] == 'Zip':
+        # a lot of hansards are found to be in ZIP format, but can be opened with python-docx
+        return DOCX if not as_string else 'DOCX'
     else:
         # some other filetype that we don't account for
         return None
@@ -59,7 +62,10 @@ def doc_to_html(filepath, overwrite=False):
     html_file = '{}.html'.format(filepath)
     if not os.path.exists(html_file) or overwrite:
         cmd = ['abiword', '--to=html', '--to-name=fd://1', filepath]
-        res = subprocess.check_output(cmd)
+        try:
+            res = subprocess.check_output(cmd)
+        except:
+            return None
         with open(html_file, 'wb') as tmp:
             tmp.write(res)
     else:

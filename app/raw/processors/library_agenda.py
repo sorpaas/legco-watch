@@ -114,7 +114,7 @@ class LibraryAgendaProcessor(BaseProcessor):
         res = []
         # Filter out titles with "Appendix", "Annex" and "fu jian"
         # Sometimes there are (Internet) versions.  Not sure what they mean
-        # Sometimes there are additional document with ID number beginning "CB"
+        # Sometimes there are additional document with ID number beginning with "CB"
         filters = [u'App', u'Annex', u'CB', u'Internet',
                    u'\u9644\u9304', u'\u9644\u4ef6', u'\u7db2\u4e0a\u7248']
         for l in links_array:

@@ -4,6 +4,8 @@
 """
 Document wrappers for LegCo Hansard (formal and floor)
 """
+import pdb
+#pdb.set_trace()
 import logging
 import lxml
 from lxml import etree
@@ -16,9 +18,10 @@ from collections import OrderedDict
 from raw.utils import to_string, to_unicode, grouper
 from ..models.constants import *
 from lxml.etree import tostring
+#from ..models import *
 
 logger = logging.getLogger('legcowatch-docs')
-
+logger.setLevel(logging.INFO)
 # Global header patterns. All are <strong> and upper case. Some
 
 # these sub-sections should be in the main_heading section
@@ -33,12 +36,16 @@ TABLED_PAPERS_e = 'TABLING OF PAPERS'
 TABLED_PAPERS_c = u'提交文件'
 ADDRESSES_c = u'發言'
 ADDRESSES_e = 'ADDRESSES'
+URGENT_QUESTIONS_e = 'QUESTIONS UNDER RULE 24(4) OF THE RULES OF PROCEDURE'
+URGENT_QUESTIONS_c = u'根據《議事規則》第24(4)條提出的質詢'
 ORAL_QUESTIONS_e = 'ORAL ANSWERS TO QUESTIONS'
 ORAL_QUESTIONS_c = u'議員質詢的口頭答覆'
 WRITTEN_QUESTIONS_e = 'WRITTEN ANSWERS TO QUESTIONS'
 WRITTEN_QUESTIONS_c = u'議員質詢的書面答覆'
-MOTIONS_e = "MEMBERS' MOTIONS"
-MOTIONS_c = u'議員議案'
+MOTIONS_e1 = "MEMBERS' MOTIONS"
+MOTIONS_e2 = "MOTIONS"
+MOTIONS_c1 = u'議員議案'
+MOTIONS_c2 = u'議案'
 BILLS_e = 'BILLS'
 BILLS_c = u'法案'
 STATEMENTS_e = 'STATEMENTS'
@@ -48,6 +55,7 @@ STATEMENTS_c = u'聲明'
 CE_Q_AND_A_e = "THE CHIEF EXECUTIVE'S QUESTION AND ANSWER SESSION"
 CE_Q_AND_A_c = u'行政長官答問會'
 
+#Ending
 SUSPENSION_e = 'SUSPENSION OF MEETING'
 SUSPENSION_c = u'暫停會議'
 NEXT_MEETING_e = 'NEXT MEETING'
@@ -55,8 +63,8 @@ NEXT_MEETING_c = u'下次會議'
 ADJOURNMENT_e = 'ADJOURNMENT OF MEETING'
 ADJOURNMENT_c = u'休會'
 
-LIST_OF_HEADERS_e = [TABLED_PAPERS_e,ADDRESSES_e,ORAL_QUESTIONS_e,WRITTEN_QUESTIONS_e,MOTIONS_e,BILLS_e,STATEMENTS_e,CE_Q_AND_A_e,SUSPENSION_e,NEXT_MEETING_e,ADJOURNMENT_e]
-LIST_OF_HEADERS_c = [TABLED_PAPERS_c,ADDRESSES_c,ORAL_QUESTIONS_c,WRITTEN_QUESTIONS_c,MOTIONS_c,BILLS_c,STATEMENTS_c,CE_Q_AND_A_c,SUSPENSION_c,NEXT_MEETING_c,ADJOURNMENT_c]
+LIST_OF_HEADERS_e = [TABLED_PAPERS_e,ADDRESSES_e,URGENT_QUESTIONS_e,ORAL_QUESTIONS_e,WRITTEN_QUESTIONS_e,MOTIONS_e1,MOTIONS_e2,BILLS_e,STATEMENTS_e,CE_Q_AND_A_e,SUSPENSION_e,NEXT_MEETING_e,ADJOURNMENT_e]
+LIST_OF_HEADERS_c = [TABLED_PAPERS_c,ADDRESSES_c,URGENT_QUESTIONS_c,ORAL_QUESTIONS_c,WRITTEN_QUESTIONS_c,MOTIONS_c1,MOTIONS_c2,BILLS_c,STATEMENTS_c,CE_Q_AND_A_c,SUSPENSION_c,NEXT_MEETING_c,ADJOURNMENT_c]
 #<hr></hr> or </hr>
 
 # some footnotes may follow
@@ -68,10 +76,12 @@ class CouncilHansard(object):
     Object representing the **formal/translated** Council Hansard document.  This class
     parses the document source and makes all of the individual elements easily accessible
     """
-    def __init__(self, uid, lang, source, *args, **kwargs):
+    def __init__(self, uid, lang, source, raw_date, *args, **kwargs):
         logger.debug(u'** Parsing hansard {}'.format(uid))
         self.uid = uid
         self.language = lang
+        self.raw_date = raw_date
+
         # Raw html string
         self.source = source
         self.tree = None
@@ -91,19 +101,21 @@ class CouncilHansard(object):
         self.tabled_papers = None
         self.tabled_legislation = None
         self.tabled_other_papers = None
+        self.urgent_questions = None
         self.oral_questions = None
+        self.oral_questions_map = None
         self.written_questions = None
+        self.written_questions_map = None
         self.bills = None
         self.motions = None
-        self.ce_q_and_a = None
-        
-        self.question_map = None
-        
+        self.ce_q_and_a = None        
         self.suspension = None #sometimes contain extra info as well as next meeting schedule.
         ## There may exist an <hr> line separating content and footnote.
         self.other = None
         
         self.sections = [] #store the keys of SECTION_MAP here
+        
+        self._count_errors = 0
         
         self._load()
         self._clean()
@@ -124,6 +136,7 @@ class CouncilHansard(object):
         self.source = re.sub(single_quotes, u"'", self.source)
         # Convert colons
         self.source = self.source.replace(u'\uff1a', u':')
+        #self.source = self.source.replace(u'：', u':')
         # Convert commas
         #self.source = self.source.replace(u'\u2C', u',')
         # Remove line breaks and tabs
@@ -144,7 +157,8 @@ class CouncilHansard(object):
         #self.source = self.source.replace('<hr>','<hr></hr>')
 
         # May need this for Chinese characters
-        #self.source = self.source.decode('hkscs',errors='ignore')
+        #if self.language == LANG_CN:
+        #    self.source = self.source.encode('utf-8',errors='ignore')
         
         # Use the lxml cleaner
         cleaner = Cleaner()
@@ -153,8 +167,7 @@ class CouncilHansard(object):
         self.tree = cleaner.clean_html(lxml.html.fromstring(to_string(self.source), parser=parser))
         # self.tree = lxml.html.fromstring(to_string(self.source))
         
-        #self._dump_as_fixture()
-    
+        logger.info(u'Finished _load().')
     
     def _clean(self):
         """
@@ -162,47 +175,42 @@ class CouncilHansard(object):
         """
         #etree.strip_tags(self.tree, 'strong')#we need some <strong> tags in hansard
         
-        # A very weird problem: sometimes an empty <p> block will cause the text below
-        # <hr> line to be contained by extra <strong> box while trying to get rid of
-        # extra <hr>s below. So have to delete them.
+        # CapsLock also happens in Chinese (in titles)
+        for xx in self.tree.find_class('pydocx-caps'):
+            # Make all text inside uppercase.
+            # Loop over all descendants and upper-case their text.
+            desc = xx.xpath('./descendant::*')
+            if desc == [] and xx.text is not None:
+                xx.text = xx.text.upper()
+            elif len(desc)==1 and desc[0].text is not None:
+                desc[0].text = desc[0].text.upper()
+            else:
+                for yy in desc:
+                    if yy.text is not None:
+                        yy.text = yy.text.upper()
+            # Drop the pydocx-caps tag
+            xx.drop_tag()
+            #xx.attrib.pop('class')
         
+        # Drop extra tab
+        for xx in self.tree.find_class('pydocx-tab'):
+            xx.drop_tag()
+
         # Get rid of some extra tags
         for xx in self.tree.xpath('//p'):
-            if (xx.text_content()=='' or xx.text_content()==' ' or xx.text_content() is None) and xx.getchildren() == []:
+            if (xx.text_content().strip()=='' or xx.text_content() is None):
                 xx.drop_tree()
         
         for xx in self.tree.xpath('//em'):
-            if (xx.text_content()=='' or xx.text_content()==' ' or xx.text_content() is None) and xx.getchildren() == []:
-                xx.drop_tree()
-                
-        for xx in self.tree.findall('.//strong'):
-            if (xx.text_content()=='' or xx.text_content()==' ' or  xx.text_content() is None) and xx.getchildren() == []:
+            if (xx.text_content().strip()=='' or xx.text_content() is None):
                 xx.drop_tree()
         
-        for xx in self.tree.find_class('pydocx-tab'):
-            xx.drop_tag()
-        
-        
-        #for xx in self.tree.find_class('pydocx-left'):
-        #    xx.drop_tree()
-        
-        if self.language==LANG_EN:
-            for xx in self.tree.find_class('pydocx-caps'):
-                # Make all text inside uppercase.
-                # Loop over all descendants and upper-case their text.
-                # usually 'pydocx-caps' class comes with a <strong> tag inside
-                desc = xx.xpath('./descendant::*')
-                if desc is None:
-                    xx.text = xx.text_content().upper()
-                elif len(desc)==1:
-                    desc[0].text = desc[0].text.upper()
-                else:
-                    for yy in desc:
-                        yy.text = yy.text.upper()
-                # Drop the pydocx-caps tag
-                xx.drop_tag()
-                #xx.attrib.pop('class')
-         
+        #print len(self.tree.xpath('//strong'))
+        for xx in self.tree.xpath('//strong'):
+            if (xx.text_content().strip() == '' or xx.text_content() is None) and xx.getchildren() == []:
+                xx.drop_tree()
+                #print 'here'
+                #xx.getparent().remove(xx)
         
         #Some testing scripts
         #tmp_content = self.tree.xpath('//body/p[138]')[0]
@@ -256,12 +264,14 @@ class CouncilHansard(object):
             
         # Some titles may be broken. Join them.
         # Actually the main heading may also need this, but is ignored for now.
-        for p in self.tree.xpath('//body/p[count(preceding::hr)=1]'):   #i.e. the main_content
+        #for p in self.tree.xpath('//body/p[count(preceding::hr)=1]'):   #i.e. the main_content
+        for p in self.tree.xpath('//body/p'):
             if p.tail is None: #no text before first element
-                children = p.getchildren() #children is everything inside one <p> block
+                children = p.getchildren()
                 if len(children)>1:
                     for child in children:
-                        if child.tag!='strong' or child.tail is not None:#if other stuffs present, break
+                        if child.tag!='strong' or (child.tail is not None and child.tail!=u"'"):#if other stuffs present, break
+                        #if child.tag!='strong' or child.tail is not None:
                             break
                     else:
                         # Found a <p> block to fix
@@ -275,14 +285,23 @@ class CouncilHansard(object):
         #Notice that this html is not the same as from RawCouncilHansard._dump_as_fixture(),
         #and is stored in a different folder
         
-        self._dump_as_fixture()
-        
+        self._dump_as_fixture(append_str='cleaned')
+        logger.info(u'Finished _clean().')
                 
     def _parse(self):
         """
         Parse the source document and populate this object's properties
-        This method breaks the Hansard by <hr> into (3) sections, and pass they to their
-        corresponding parsers.
+        立法會在會期內通常每星期三上午在立法會綜合大樓會議廳舉行會議，處理立法會事務，包括：
+        提交附屬法例及其他文件；
+        提交報告及發言；
+        發表聲明；
+        進行質詢；
+        審議法案，
+        以及進行議案辯論。
+        行政長官亦會不時出席立法會的特別會議，向議員簡述有關政策的事宜及解答議員提出的質詢。
+        立法會所有會議均公開進行，讓市民旁聽。會議過程內容亦以中英文逐字記錄，載於《立法會會議過程正式紀錄》內。
+        立法會會議過程紀錄首先是以議員及官員在發言時所用的語言輯製而成( 是為即場紀錄本 )。
+        其後，議事錄編製組會把即場紀錄本分別翻譯為中、英文版本。 
         """
         
         # The Hansards, unlike agendas, do not have <div> tag. All texts are contained in <p>,
@@ -299,6 +318,7 @@ class CouncilHansard(object):
             LIST_OF_HEADERS = LIST_OF_HEADERS_c
         else:
             logger.error(u'The Hansard parser cannot handle Floor Recording:{}'.format(self.uid))
+            self._count_errors+=1
             return None
         logger.info(u'Language: {}'.format(self.language))
         
@@ -352,8 +372,10 @@ class CouncilHansard(object):
                 elem_list.append(part)
         SECTION_MAP.update({elem_key:elem_list})#do not forget the last section
         
-        #for key in SECTION_MAP.keys():
-        #    print key
+        logger.info(u'Total number of sections found = {}'.format(len(SECTION_MAP.keys())))
+        for key in SECTION_MAP.keys():
+            logger.info(u'Found section: {}'.format(key))
+        
         
         # Useful scripts:
         # 1. look into a section
@@ -370,29 +392,52 @@ class CouncilHansard(object):
         # Forward each section to its corresponding parser
         lang_char = 'e' if self.language==LANG_EN else 'c'
         for section in SECTION_MAP.keys():
-            logger.info(u'Parsing {} section for Hansard: {}'.format(section, self.uid))
+            #logger.info(u'Parsing {} section for Hansard: {}'.format(section, self.uid))
             
             if section == 'BEFORE MEETING':
+                logger.info(u'Parsing BEFORE MEETING...')
                 self._parse_before_meeting(SECTION_MAP[section])
-                
+                logger.info(u'Done.')
             elif section == eval('TABLED_PAPERS_{}'.format(lang_char)):
             #elif section == globals()['TABLED_PAPERS_{}'.format(lang_char)]: #also works
+                logger.info(u'Parsing TABLED_PAPERS...')
                 self._parse_tabled_papers(SECTION_MAP[section])
+                logger.info(u'Done.')
+            elif section == eval('URGENT_QUESTIONS_{}'.format(lang_char)):
+                logger.info(u'Parsing URGENT_QUESTIONS...')
+                self._parse_urgent_questions(SECTION_MAP[section])
+                logger.info(u'Done.')
             elif section == eval('ORAL_QUESTIONS_{}'.format(lang_char)):
+                logger.info(u'Parsing ORAL_QUESTIONS...')
                 self._parse_oral_answers_to_questions(SECTION_MAP[section])
+                logger.info(u'Done.')
             elif section == eval('WRITTEN_QUESTIONS_{}'.format(lang_char)):
+                logger.info(u'Parsing WRITTEN_QUESTIONS...')
                 self._parse_written_answers_to_questions(SECTION_MAP[section])
+                logger.info(u'Done.')
             elif section == eval('BILLS_{}'.format(lang_char)):
+                logger.info(u'Parsing BILLS...')
                 self._parse_bills(SECTION_MAP[section])
-            elif section == eval('MOTIONS_{}'.format(lang_char)):
+                logger.info(u'Done.')
+            elif section == eval('MOTIONS_{}'.format(lang_char+'1')) or \
+                section == eval('MOTIONS_{}'.format(lang_char+'2')):
+                logger.info(u'Parsing MOTIONS...')
                 self._parse_motions(SECTION_MAP[section])
+                logger.info(u'Done.')
             elif section == eval("CE_Q_AND_A_{}".format(lang_char)):
+                logger.info(u'Parsing CE_Q_AND_A...')
                 self._parse_CE_Q_AND_A(SECTION_MAP[section])
+                logger.info(u'Done.')
             elif section == eval('SUSPENSION_{}'.format(lang_char)) or\
                  section == eval('NEXT_MEETING_{}'.format(lang_char)) or\
                  section == eval('ADJOURNMENT_{}'.format(lang_char)):
+                logger.info(u'Parsing ENDING...')
                 self.suspension = self._parse_ending(SECTION_MAP[section])
-            
+                logger.info(u'Done.')
+                
+        logger.info(u'Done parsing all recognised sections.')
+        self._dump_as_fixture(append_str='end')
+        
     ## Parsers for sections
     def _parse_main_heading(self,heading_list):  
         """
@@ -473,25 +518,22 @@ class CouncilHansard(object):
         elem_key = ''
         elem_val = []
         for elem in heading_list:
-            tmp_str = elem.text_content()
-            #sometimes it is headed/followed by space(s). Remove them
-            """
-            try:
-                while tmp_str[0] == ' ':
-                    tmp_str = tmp_str[1:]
-                while tmp_str[-1] == ' ':
-                    tmp_str = tmp_str[:-1]
-            except IndexError:
-                pass
-            """
-            tmp_str = tmp_str.strip()
-            if tmp_str in DICT_MAIN_HEADING.keys():
+            # Look for strings that identify a new header, e.g. 'MEMBERS PRESENT'
+            # Usually in <p> box, but sometimes without container.
+            tmp_str = elem.text_content().strip()
+            tmp_tail = elem.tail
+            if tmp_str in DICT_MAIN_HEADING.keys() or tmp_tail in DICT_MAIN_HEADING.keys():
+                if tmp_str in DICT_MAIN_HEADING.keys():
+                    new_header = tmp_str
+                elif tmp_tail in DICT_MAIN_HEADING.keys():
+                    new_header = tmp_tail
+
                 # New header found
                 if elem_key=='':
-                    elem_key = DICT_MAIN_HEADING[tmp_str] #update key
+                    elem_key = DICT_MAIN_HEADING[new_header] #update key
                     continue
                 main_heading_map.update({elem_key:elem_val}) # save the previous part
-                elem_key = DICT_MAIN_HEADING[tmp_str] #update key
+                elem_key = DICT_MAIN_HEADING[new_header] #update key
                 elem_val = [] #empty list
                 continue
             elem_val.append(elem)
@@ -520,7 +562,7 @@ class CouncilHansard(object):
             list_members_pres = self._get_member_list(members_pres)
             self.president = list_members_pres[0]
             self.members_present = list_members_pres[1:]
-
+        logger.info(u'Finshed parsing members attending.')
         
         #3. Get absent members
         try:
@@ -529,19 +571,36 @@ class CouncilHansard(object):
         except:
             # Rare but full attendance happens
             self.members_absent = None
-        
+        logger.info(u'Finished parsing members absent.')
 
         #4. The list of public officers is a little different: 
         # For English, the first line is a name+title, with a second line about his/her position
         # For Chinese, only 1 line.
+        # Usually officers should present, but chances are Hansard format is wrong.
         
-        public_officers_pres = main_heading_map['PUBLIC_OFFICERS']
+        #print len(main_heading_map['PUBLIC_OFFICERS'])
+        #for k in main_heading_map['PUBLIC_OFFICERS']:
+        #    print k.text
         
-        #maybe there is a case where no officers present?
+        
+        try:
+            public_officers_pres = main_heading_map['PUBLIC_OFFICERS']
+        except:
+            logger.warn(u'Cannot find any officers.')
+            public_officers_pres = None
+        
         if public_officers_pres is None:
             self.public_officers = None
-            logger.warn(u'No public officer present in {}.'.format(self.uid))
         else:
+            # Dirty fix: sometimes descriptive text e.g. '(am)', '(from 7.35 pm)' present. 
+            # Quite rare. Append it to the text before it
+            for elem in public_officers_pres:
+                if u'(' in elem.text_content():
+                    prec_sibl = elem.xpath('preceding-sibling::p[1]')[0]
+                    if prec_sibl.text is not None and elem.text is not None:
+                        prec_sibl.text += elem.text
+                    public_officers_pres.remove(elem) 
+            
             if self.language==LANG_EN:
                 #split the odd and even entries
                 officers_name_str = public_officers_pres[::2]
@@ -550,13 +609,21 @@ class CouncilHansard(object):
                 #print(officers_position_str)
                 if len(officers_name_str)!=len(officers_position_str):
                     logger.error(u'Number of officers does not match number of positions- {}:{}'.format(len(officers_name_str),(officers_position_str)))
+                    self._count_errors+=1
                     self.public_officers = None
                 else:
                     #officers are not in member list (RawMember), so only get their name and title
                     if len(officers_name_str)>1:
                         officers_name=[elem.text_content().split(',')[0] for elem in officers_name_str]
-                        officers_title=[elem.text_content().split(',',1)[1] for elem in officers_name_str]
-                        #officers_title = ', '.join(officers_title)
+                        # Officers usually have some titles, but not always
+                        officers_title = []
+                        for elem in officers_name_str:
+                            try:
+                                officers_title.append(elem.text_content().split(',',1)[1].strip())
+                            except:
+                                officers_title.append(u'')
+                                logger.info(u'Officer name "{}" does not have a title.'.format(elem.text_content()))
+
                         officers_position=[elem.text_content() for elem in officers_position_str]
                         self.public_officers = zip(officers_name,officers_title,officers_position)
                     else:
@@ -566,23 +633,27 @@ class CouncilHansard(object):
                         officers_position= officers_position_str[0].text_content()
                         self.public_officers = [(officers_name,officers_title,officers_position)]
             elif self.language==LANG_CN:
-                officer_pattern_c = ur'(?P<position>.*[局長|司長])(?P<name>.*)'
+                officer_pattern_c = ur'(?P<position>.*[局長|司長|顧問])(?P<name>.*)'
                 tmp_list = []
                 for elem in public_officers_pres:
-                    officers_name = elem.text_content().split(',',1)[0]
-                    if len(elem.text_content().split(',',1))>1:
-                        officers_title = elem.text_content().split(',',1)[1]
-                    else:
-                        officers_title = ''
-                    match = re.match(officer_pattern_c,officers_name)
-                    if match is not None:
-                        tmp_list.append((match.group('name'),officers_title,match.group('position')))
-                    else:
-                        logger.error(u'Unrecogised string for officers: {}'.format(officers_name))
-                        #tmp_list.append((officers_name,officers_title,''))
+                    officers_name = elem.text_content().split(',',1)[0].strip()
+                    if officers_name != '':
+                        if len(elem.text_content().split(',',1))>1:
+                            officers_title = elem.text_content().split(',',1)[1].strip()
+                        else:
+                            officers_title = ''
+                        match = re.match(officer_pattern_c,officers_name)
+                        if match is not None:
+                            tmp_list.append((match.group('name'),officers_title,match.group('position')))
+                        else:
+                            logger.error(u'Unrecogised string for officers: {}'.format(officers_name))
+                            self._count_errors+=1
+                            #tmp_list.append((officers_name,officers_title,''))
                         
                 self.public_officers = tmp_list
-
+        
+        logger.info(u'Finished parsing public officers present.')
+        
         #5. Finally, the clerks in attendance
         #the format in harsard is: name, title(s)[optional],position
         #similar to officers, return a list of 3-tuple
@@ -618,6 +689,8 @@ class CouncilHansard(object):
                         break
      
         self.clerks = clerk_list
+        logger.info(u'Finished parsing clerks present.')
+        
         return main_content
         #Done.
     
@@ -632,6 +705,8 @@ class CouncilHansard(object):
         
     
     def _parse_tabled_papers(self,elem_list):
+        BEGINNING_E = u'The following papers were laid'
+        BEGINNING_C = u'下列文件是根據'
         LEGISLATION_E = u'Subsidiary Legislation'
         LEGISLATION_C = u'附屬法例'
         OTHER_PAPERS_E = u'Other Paper'
@@ -640,6 +715,7 @@ class CouncilHansard(object):
             self.tabled_papers = None
             return
         
+        BEGINNING = BEGINNING_E if self.language==2 else BEGINNING_C
         LEGISLATION = LEGISLATION_E if self.language==2 else LEGISLATION_C
         OTHER_PAPERS = OTHER_PAPERS_E if self.language==2 else OTHER_PAPERS_C
         
@@ -653,113 +729,168 @@ class CouncilHansard(object):
         # Shall no table found, these two sections can be distinguished by their text content,
         # as a last resort.
         
-        # Firstly, check if the section contains exactly two tables. If true, we do not have to
-        # work too hard.
+        # Get rid of the first line
+        # Be careful that the first elem may not be the beginning sentence.
+        for elem in elem_list:
+            if elem.text_content().strip().startswith(BEGINNING):
+                elem_list.remove(elem)
+                break
+            else:
+                # do not need anything before that statement (usually extra tag)
+                elem_list.remove(elem)
+                
+        # Check if the section contains exactly two tables. If true, we do not have to
+        # work so hard
         table_list = []
         for elem in elem_list:
             if elem.tag == u'table':
                 table_list.append(elem)
-                
+        logger.info(u'Found {} tables.'.format(len(table_list)))
+        
         if len(table_list) == 2:
-            self.tabled_legislation = self._parse_legislation_table(table=table_list[0])
-            self.tabled_other_papers = self._parse_other_papers_table(table=table_list[1])
-        elif len(table_list) == 1:
-            # Usually this table is Legislation table.
-            self.tabled_legislation = self._parse_legislation_table(table=table_list[0])
-            # Look for Other Papers
-            other_paper_elem = None
-            for i in range(len(elem_list)):
-                if elem_list[i].text_content().strip().startswith(OTHER_PAPERS):
-                    # Found Other Paper section
-                    other_paper_elem = elem_list[i+1:]
-                    break
-            self.tabled_other_papers = self._parse_other_papers_table(elem_list=other_paper_elem)
-        else:
-            # Cannot find any table element (rarely the case for recent Hansard)
-            # Need to separate two sections carefully.
-            # Firstly, see if we can find the titles for two sections
-            legislation_elem_list = []
-            other_papers_elem_list = []
-            section_flag = 0
-            for elem in elem_list:
-                if elem.text_content().strip().startswith(LEGISLATION):
-                    # Found 'Subsidiary Legislation' section
-                    section_flag = 1
-                    continue
-                elif elem.text_content().strip().startswith(OTHER_PAPERS):
-                    # Found 'Other Papers' section
-                    section_flag = 2
-                    continue
-                if section_flag == 1:
-                    legislation_elem_list.append(elem)
-                elif section_flag == 2:
-                    other_papers_elem_list.append(elem)
-            # Pass to parser
-            self.tabled_legislation = self._parse_legislation_table(elem_list=legislation_elem_list)
-            self.tabled_other_papers = self._parse_other_papers_table(elem_list=other_papers_elem_list)
-        # Finally, put all papers together.
-        self.tabled_papers = [self.tabled_legislation,self.tabled_other_papers]
+            # Best result, two tables
+            self.tabled_legislation = self._parse_legislation_table(table_list[0])
+            self.tabled_other_papers = self._parse_other_papers_table(table_list[1])
+            #self.tabled_papers = [self.tabled_legislation,self.tabled_other_papers]
+            return
         
         
-    def _parse_legislation_table(self,table=None,elem_list=None):
+        # Otherwise, loop through to see if headers text exist
+        legis_elem = []
+        other_elem = []
+        current_section = 0 #0 for nothing, 1 for Legislation, 2 for Other
+        for elem in elem_list:
+            if elem.text_content().strip().startswith(LEGISLATION):
+                current_section = 1
+                continue
+            elif elem.text_content().strip().startswith(OTHER_PAPERS):
+                current_section = 2
+                continue
+            if current_section == 1:
+                legis_elem.append(elem)
+            elif current_section == 2:
+                other_elem.append(elem)
+        # Pass content to parsers
+        if current_section != 0:
+            if legis_elem !=[]:
+                self.tabled_legislation = self._parse_legislation_table(legis_elem)
+            if other_elem !=[]:
+                self.tabled_other_papers = self._parse_other_papers_table(other_elem)
+            #self.tabled_papers = [self.tabled_legislation,self.tabled_other_papers]
+            return
+        
+        ###
+        # Headers do not exist, and less than 2 tables found. 
+        # This is the hardest case, and sometimes even the order is reversed 
+        # (Other Papers appears before Legislation)
+        
+        # Firstly, check if any table exists at all
+        if len(table_list) == 1:
+            current_table = table_list[0]
+            for row in current_table.xpath('.//tr'):
+                if row.xpath('./td') is not None:
+                    if len(row.xpath('./td')) == 1:
+                        # Cannot determine
+                        continue
+                    elif len(row.xpath('./td')) == 3:
+                        if row.xpath('./td')[0].text_content()==u'':
+                            continue
+                        # check the middle block. If there is something inside, it is Other Papers
+                        elif row.xpath('./td')[1].text_content().strip()!=u'':
+                            # Table is Other Paper
+                            # So the table and all elements following it will be Other Papers
+                            self.tabled_other_papers = self._parse_other_papers_table(elem_list)
+                            current_table.drop_tree()
+                            return
+                        else:
+                            self.tabled_legislation = self._parse_legislation_table(current_table)
+                            current_table.drop_tree()
+                            break
+                    elif len(row.xpath('./td')) == 2:
+                        # Legislation table
+                        self.tabled_legislation = self._parse_legislation_table(current_table)
+                        current_table.drop_tree()
+                        break
+                    else:
+                        logger.error(u"Unrecognised table format with {} columns.".format(len(row.xpath('./td'))))
+                        return
+            
+        # If we get here, everything that remain will be Other Papers
+        self.tabled_other_papers = self._parse_other_papers_table(elem_list)
+        
+        
+    def _parse_legislation_table(self,elem_list):
         # Chinese and English tables have different characteristics
         # which can be used for our advantage
         # Each Subsidiary Legislation/Instruments item has a title and a L.N. No.(法律公告編號)
         # In Chinese titles are enclosed with '《》' but ones in English do not
+        # Assume all legislation papers are in table
         
-        if elem_list is not None and table is None:
-            #Currently not seen, and is thus not supported
-            # may need this later
-            logger.warn(u'_parse_legislation_table method currently support only table.')
+        logger.info(u'Parsing legislation table...')
+        if elem_list is None:
             return None
-        elif elem_list is None and table is None:
+        
+        table = None
+        # If there is a table, we work on it only
+        for elem in elem_list:
+            if elem.tag == 'table':
+                table = elem
+            break
+        else:
+            # Cannot find any table
+            logger.error(u'Cannot find a table for legislation.')
             return None
-        elif table is not None:
+
+
+        legislation_list = []
+        if table is not None:
             # Each entry is enclosed by <tr></tr>, with each block in a <td></td>
             # Normally English tables have 2 column while Chinese have 3, with one in middle blank.
             # Nonetheless, check for all number of columns, and be careful of empty rows.
-            legislation_list = []
             entries = table.xpath('.//tr')
             for tr in entries: # each tr is a tabled paper item
                 tds = tr.xpath('./td') # there should normally be 2 td, as 2 columns
                 if len(tds) < 2:
-                    # just ignore
+                    # empty line, just ignore
                     continue
-                elif len(tds) == 2: # best format
+                elif len(tds) == 2: # best format, but can be empty row
                     if tds[0].text_content().strip() != u'' and tds[0].text_content().strip() is not None:
                         legislation_list.append((tds[0].text_content().strip(),tds[1].text_content().strip()))
                     else:
                         # empty line
                         continue
                 elif len(tds) > 2:
-                    #loop over all td, see if only 2 columns has text
-                    text_cnt = 0
-                    text_list = []
-                    for td in tds:
-                        if td.text_content().strip() != '' and td.text_content().strip() is not None:
-                            text_list.append(td.text_content().strip())
-                            text_cnt+=1 
-                    if text_cnt !=2:
-                        logger.error(u'Wrong number of columns found. Expected 2, but get {}'.format(text_cnt))
+                    #get the first and last cell only
+                    if tds[0].text_content().strip() != u'' and tds[0].text_content().strip() is not None:
+                        legislation_list.append((tds[0].text_content().strip(),tds[-1].text_content().strip()))
                     else:
-                        legislation_list.append(tuple(text_list))
-        
+                        # sometimes a row is empty
+                        continue
+
         #print len(legislation_list)
         #for entry in legislation_list:
         #    print entry[0],u' - ',entry[1]
         return legislation_list
     
     
-    def _parse_other_papers_table(self,table=None,elem_list=None):
+    def _parse_other_papers_table(self,elem_list):
         """
         Parser for Other Papers portion of Tabling of Papers section.
         """
-        paper_list = []
-        if elem_list is None and table is None:
+        
+        logger.info(u'Parsing Other Papers...')
+        
+        if elem_list is None:
             return None
-        if elem_list is not None and table is not None:
-            logger.warn(u'_parse_other_papers_table method needs only one input. Default to use table.')
-            elem_list = None
+        
+        table = None
+        # If there is a table, we work on it directly
+        for elem in elem_list:
+            if elem.tag == 'table':
+                table = elem
+                break
+            
+        paper_list = []
         if table is not None:
             # table for Other Papers are 3-columns, with middle column contains a dash only.
             # so we only need the first and last one.
@@ -772,6 +903,7 @@ class CouncilHansard(object):
                 if len(entry.xpath('./td'))==3 or len(entry.xpath('./td'))==2:
                     # Normal case
                     paper_no = entry.xpath('./td')[0].text_content().strip()
+                    
                     paper_title_and_content = entry.xpath('./td')[-1]
                     # Add a '\n' for evert <br> tag encountered so Python can recognize as newline
                     for br in paper_title_and_content.xpath('.//br'):
@@ -781,30 +913,99 @@ class CouncilHansard(object):
                     paper_title_and_content = paper_title_and_content.text_content().splitlines()
                     if len(paper_title_and_content)==2:
                         # One title and one content
-                        paper_no = None
                         paper_title = paper_title_and_content[0].strip()
                         paper_content = paper_title_and_content[1].strip()
                     else:
-                        #Cannot work out. Just assume it is a title
-                        paper_no = None
+                        #Cannot work out. Just assume everything is title
                         paper_title = paper_title_and_content[0].strip()
-                        paper_content = None
+                        paper_content = u''
                     # Save
                     paper_list.append((paper_no,paper_title,paper_content))
                 elif len(entry.xpath('./td'))==1:
-                    # Just a title
+                    # One column only, just a title
                     paper_title = entry.xpath('./td')[0].text_content().strip()
-                    paper_list.append((None,paper_title,None))
+                    paper_list.append((None,paper_title,u''))
                 else:
                     logger.warn(u'Unrecognised number of columns. Expected 1, 2 or 3, got {}.'.format(len(entry.xpath('./td'))))
-        elif elem_list is not None:
+            paper_no = None
+            elem_list.remove(table)
+            
+        
+        # Even if there is a table, there may be item(s) not in it.
+        # And for Chinese Hansard, Other Papers section usually is not in a formal table.
+        if elem_list != []:
+            # Non-table papers.
+            
             # Very tricky to tell which new <p> is a new paper and which is a continuation of previous one.
             # Usually the case for Chinese hansards.
             # Strategy is: keep looping for text with format '第xx號' until
             # A. another such pattern is met; or
             # B. a line with enclosed with blankets, i.e. '(xxx)'
             paper_pattern = ur'^(?P<num>第(.+)號) [―|─] (?P<title>.+)'
-            paper_list = []
+            block_list = [] # A list of blocks(list of elem)
+            tmp_container = []
+            # Divide the list into blocks according to pattern
+            for elem in elem_list:
+                #print elem.text_content()
+                match = re.match(paper_pattern,elem.text_content().strip())
+                if match is not None:
+                    #print('a match')
+                    # A new paper heading
+                    # Save the previous block
+                    if tmp_container!=[]:
+                        block_list.append(tmp_container)
+                        tmp_container = []
+                # Put new content into temp container (regardlessly)
+                tmp_container.append(elem)
+            # Save the last block if necessary
+            if tmp_container!=[]:
+                block_list.append(tmp_container)
+            
+            #print block_list
+            #print len(block_list)
+            
+            # All blocks are processed in same way except the last one,
+            # which may contain papers not in format as 第xx號 - XXXX
+            # Usually these are single-line paper titles
+            if len(block_list)>1:
+                # Handle all except the last block. Each block is one paper.
+                for block in block_list[:-1]:
+                    # The title is in same line with paper number, a.k.a. the first element
+                    # anything remaining are extra information
+                    match = re.match(paper_pattern,block[0].text_content().strip()) # we knew that will match
+                    paper_no = match.group('num')
+                    paper_title = match.group('title')
+                    paper_content = u''
+                    if len(block)>1: # there are extra content in paper
+                        for elem in block[1:]:
+                            paper_content+=elem.text_content().strip()
+                    # Save
+                    paper_list.append((paper_no, paper_title, paper_content))
+                  
+            # Handle the last (or the only) block
+            block = block_list[-1]
+            #print block[0].text_content()
+            # Again, try to match 第xx號 - XXXX pattern
+            match = re.match(paper_pattern,block[0].text_content().strip())
+            if match is None:
+                # Simplest case, just loop over all titles and put into list
+                for elem in block:
+                    paper_title = elem.text_content().strip()
+                    paper_list.append((None, paper_title, u''))
+            else:
+                #print('match')
+                # One paper (optionally) followed by many
+                # We could use 'tab' tags for splitting them, but we removed these tags in pre-processing
+                # So the best bet is to assume 1 row of extra content
+                paper_no = match.group('num')
+                paper_title = match.group('title')
+                paper_content = block[1].text_content().strip()
+                # Check whether this paper has extra content
+                for elem in block[2:]:
+                    paper_list.append((None,elem.text_content().strip(),u''))
+
+            """
+            paper_pattern = ur'^(?P<num>第(.+)號) [―|─] (?P<title>.+)'
             paper_title = None
             paper_content = ''
             for elem in elem_list:
@@ -853,7 +1054,8 @@ class CouncilHansard(object):
                     paper_content+=elem.text_content().strip()
                 else:
                     paper_title = elem.text_content().strip()
-            # last entry
+                    
+            # save last entry
             if paper_title is not None:
                 try:
                     paper_list.append((paper_no,paper_title,paper_content))
@@ -864,38 +1066,66 @@ class CouncilHansard(object):
         #for item in paper_list:
         #    print cnt,item[0],u': ',item[1],u' -- ',item[2]
         #    cnt+=1
-        
+            """
         return paper_list
+    
+    ####################################################
+    # Members' Questions and Answers
+    # Output a question_obj - a list of 3-tuples:
+    # [(Question number, Question title, Question content), ...] 
+    ####################################################
+    def _parse_urgent_questions(self,elem_list):
+        if elem_list[0].text_content().strip().startswith(u'主席') or\
+        elem_list[0].text_content().strip().startswith(u'PRESIDENT'):
+            logger.warn(u'Message(s) found before questions.')
+            elem_list = elem_list[1:]
         
-        
-
+        if self.language==LANG_EN:
+            self.urgent_questions = self._parse_answers_to_questions_e(elem_list,allow_zero=True)
+        elif self.language==LANG_CN:
+            self.urgent_questions = self._parse_answers_to_questions_c(elem_list,allow_zero=True)
+        #self.oral_questions_map = self._build_question_map(self.oral_questions)
+    
+    
     def _parse_oral_answers_to_questions(self,elem_list):
         """
         Choose parser for oral_answers_to_questions according to language
         Because the format is different for different languages, better use different methods.
         """
+        # Sometimes the President will say something before start (usually not important).
+        # Below is a dirty fix to get rid of it.
+        if elem_list[0].text_content().strip().startswith(u'主席') or\
+        elem_list[0].text_content().strip().startswith(u'PRESIDENT'):
+            logger.warn(u'Message(s) found before questions.')
+            elem_list = elem_list[1:]
+        
         if self.language==LANG_EN:
             self.oral_questions = self._parse_answers_to_questions_e(elem_list)
         elif self.language==LANG_CN:
             self.oral_questions = self._parse_answers_to_questions_c(elem_list)
-            
+        self.oral_questions_map = self._build_question_map(self.oral_questions)
             
     def _parse_written_answers_to_questions(self,elem_list):
         """
         Choose parser for written_answers_to_questions according to language
         Because the format is different for different languages, better use different methods.
         """
+        if elem_list[0].text_content().strip().startswith(u'主席') or\
+        elem_list[0].text_content().strip().startswith(u'PRESIDENT'):
+            logger.warn(u'Message(s) found before questions.')
+            elem_list = elem_list[1:]
+            
         if self.language==LANG_EN:
-            self.written_questions = self._parse_answers_to_questions_e(elem_list)
+            self.written_questions = self._parse_answers_to_questions_e(elem_list,disable_event= True)
         elif self.language==LANG_CN:
-            self.written_questions = self._parse_answers_to_questions_c(elem_list)
-    
-    
-    def _parse_answers_to_questions_e(self,elem_list):
+            self.written_questions = self._parse_answers_to_questions_c(elem_list,disable_event= True)
+        self.written_questions_map = self._build_question_map(self.written_questions)
+
+    def _parse_answers_to_questions_e(self,elem_list,disable_event = False, allow_zero=False):
         """
         Parse English xxx_answers to questions.
         """
-        logger.info(u'Parsing written answers to questions.')
+        logger.info(u'Parsing (English) answers to questions.')
         #break the section into questions
         q_name=''
         q_elem=[]
@@ -913,16 +1143,76 @@ class CouncilHansard(object):
                     q_elem=[]
                     continue
             q_elem.append(elem)
-        list_of_questions.append((q_name,q_elem)) #last one
+        if q_name!='' and q_elem!=[]:
+            list_of_questions.append((q_name,q_elem)) #save the last one
         
-        #now we have all questions
-        #for each question, separate dialogues. The first <p> will contain question number, 
-        #name of speaker, and language. All following text will be part of question until another speaker
-        #answers. Afterwards, if further conversation presents for the matter, another name of speaker
-        #block will turn up just like the answer. All body contents will be contained inside a list of 2-tuple,
-        #(speaker,speech)
-        question_obj = []
+        #cnt = 0
+        #print(len(list_of_questions))
+        #for q in list_of_questions:
+        #    cnt+=1
+        #    print cnt,q[0],len(q[1])
+        
+        #now we have all questions (title, elem)
+        # For each question, splits dialogues. The first <p> should contain question number, but not always.
+        # Sometimes speaker says something before asking.
+        # So we loop through all elements once first, try to fetch the element with question number,
+        # get the number, remove it, and leave the job to parse_dialog().
+        # Will return body contents as a list of 2-tuples, (speaker,speech)
+        list_q_num = []
         for q in list_of_questions:
+            # Loop through all elements once, get and remove the question number
+            q_elems = q[1]
+            for elem in q_elems:
+                # q_num is usually in the first <p> block, but there are exceptions
+                if elem.tag == 'p' and elem.text is not None:
+                    # Some texts inside block. Check for integer.
+                    if elem.text.replace('.','').strip().isdigit():
+                        list_q_num.append(elem.text.replace('.','').strip())
+                        # Remove that number
+                        elem.text = None
+                        break
+                # In some rare cases the number is enclosed by a <strong> box, like the ones in Chinese version
+                elif elem.tag == 'p' and elem.getchildren() is not None:
+                    if elem.getchildren() != []:
+                        tmp_potential_num_box = elem.getchildren()[0]
+                        if tmp_potential_num_box.tag == 'strong' and tmp_potential_num_box.text is not None:
+                            if tmp_potential_num_box.text.replace('.','').strip().isdigit():
+                                # Found a number enclosed by <strong>
+                                list_q_num.append(tmp_potential_num_box.text.replace('.','').strip())
+                                tmp_potential_num_box.drop_tree()
+                                break
+            
+            else:
+                # Cannot find question number. 
+                if allow_zero:
+                #Assume 0.
+                    logger.warn(u'Cannot find a question number for title: {}'.format(q[0]))
+                    list_q_num.append('0')
+                else:
+                    logger.error(u'Cannot find a question number for title: {}'.format(q[0]))
+                    list_q_num.append(None)
+        
+        # Check if list_q_num and list_of_questions are equal length
+        if len(list_q_num)!=len(list_of_questions):
+            logger.warn(u"Unequal number of questions and question numbers.")
+        
+        # Deliberately decouple this loop with previous one for debugging.
+        # We have the question title and number, now parse the Q&A content and dialogs
+        #
+        question_obj = []
+        tmp_cnt = 0
+        for q in list_of_questions:
+            try:
+                question_obj.append((list_q_num[tmp_cnt],q[0],self.parse_dialogs(q[1],disable_event)))
+            except:
+                logger.error(u'Cannot parse dialogs for question number:{} with title "{}".'.format(list_q_num[tmp_cnt],q[0]))
+                self._count_errors+=1
+                question_obj.append((list_q_num[tmp_cnt],q[0],u'<p>ERROR_PARSING_BODY</p>'))
+            tmp_cnt +=1
+        
+        return question_obj
+        """
+            ### OLD CODE ###
             #From 1st Element, get question number and asker
             tmp_q = q[1][0] #q[0] is the title, q[1] are body elements q[1][0] is the first <p> block
             #question number
@@ -931,11 +1221,14 @@ class CouncilHansard(object):
                 q_num = '0'
             else:
                 q_num = q_num.replace('.','')
+            print q_num
             #get rid of number
             tmp_q.text = None
             #question speaker (asker)
             tmp_speaker = tmp_q.xpath('./strong')[0]
+            print tmp_speaker
             q_speaker = tmp_q.xpath('./strong')[0].text
+            print q_speaker
             #We do not need these text anymore. Drop them.
             tmp_q.remove(tmp_speaker)
             #Replace the original p block with this, and append it to body
@@ -949,10 +1242,11 @@ class CouncilHansard(object):
             #1. p.text is None (no text right after the <p> tag)
             #2. One and only one <strong> block inside a <p> block
             #3. All text inside <strong> block are upper-case
-            #Hopefully these conditions will cover all cases
+            # Hopefully these conditions will cover all cases
             q_body = [] #holds all (speaker,speech) tuples
             q_speech_container = '' #holds all speeches as a list of Elements
             for block in q[1]:#remember a block can be <p> or <table> or else
+                # Check for a new speaker
                 if block.tag=='p' and len(block.xpath('./strong'))==1 and block.text == None:
                     if block.xpath('./strong')[0].text.isupper():
                         #a new speaker found
@@ -960,7 +1254,7 @@ class CouncilHansard(object):
                         q_body.append((q_speaker,q_speech_container))
                         q_speech_container = ''
                         # Store the speaker and get rid of the <strong> block
-                        q_speaker = block.xpath('./strong')[0].text
+                        q_speaker = block.xpath('./strong')[0].text.strip()
                         block.xpath('./strong')[0].text = None
                         
                         # Get rid of extra colon
@@ -968,19 +1262,35 @@ class CouncilHansard(object):
                             block.xpath('./strong')[0].tail = block.xpath('./strong')[0].tail[1:]
                         
                         etree.strip_tags(block,'strong')#we know there will only be 1 <strong> block
-                q_speech_container = ''.join([q_speech_container,remove_hr_tags(tostring(block))]) 
-            q_body.append((q_speaker,q_speech_container))#do not forget the last speech
+                q_speech_container = ''.join([q_speech_container,remove_hr_tags(tostring(block))])
+            if q_speech_container!='':
+                q_body.append((q_speaker,q_speech_container))#do not forget the last speech
             question_obj.append((q_num,q[0],q_body))
+            
         return question_obj
-    
-    def _parse_answers_to_questions_c(self,elem_list):
+        """
+        
+        
+    def _parse_answers_to_questions_c(self,elem_list,disable_event = False,allow_zero=False):
         """
         Parser for Chinese xxx_answers_to_questions section.
         """
+        logger.info(u'Parsing (Chinese) answers to questions.')
         # Firstly, split up questions by looking at titles
         # A title has following characteristic:
         # 1. A <p> block with one single <strong> child.
         # 2. No text other than that inside <strong> box
+        
+        # In a few rare cases the title is embedded in <p><span class="pydocx-left"><strong>... block.
+        # get rid of them
+        for elem in elem_list:
+            if len(elem) == 1:
+                if elem.tag != 'table' and elem.find_class('pydocx-left') != []:
+                    for xx in elem.find_class('pydocx-left'):
+                        xx.drop_tag()
+        
+        
+        # Get the title and following elements of a question
         q_name=''
         q_elem=[]
         list_of_questions = []
@@ -996,19 +1306,70 @@ class CouncilHansard(object):
                         q_elem=[]
                         continue
             q_elem.append(elem)
-        list_of_questions.append((q_name,q_elem))
+        if q_name!= '' and q_elem!=[]:
+            list_of_questions.append((q_name,q_elem))
+            
+            
+        #for q in list_of_questions:
+        #    print q[0],len(q[1])
         
         # For each questions, get question number and speeches
         # This is very similar to English version, except the question number (including the '.')
         # is inside a <strong> box.
-        # A quick way is to drop that <strong> tag, then use the same idea as in English version.
-        # but beware that sometimes everything lives inside an <em> block.
+        # Similar to English version, we will loop over all content elements in search for question
+        # number, then pass everything to parse_dialogs().
+        list_q_num = []
+        for q in list_of_questions:
+            # Loop through all elements once, get and remove the question number
+            q_elems = q[1]
+            for elem in q_elems:
+                # q_num is usually in the first <p> block, but there are exceptions
+                # Remember the number is in an extra <strong> box
+                if elem.tag == 'p' and elem.xpath('./strong')!=[]:
+                    # Some texts inside strong box. Check for integer.
+                    first_strong_box = elem.xpath('./strong')[0]
+                    if first_strong_box.text is not None:
+                        if first_strong_box.text.replace('.','').strip().isdigit():
+                            list_q_num.append(first_strong_box.text.replace('.','').strip())
+                            # Remove that box
+                            first_strong_box.drop_tree()
+                            break
+            else:
+                # Cannot find question number. 
+                if allow_zero:
+                #Assume 0.
+                    logger.warn(u'Cannot find a question number for title: {}'.format(q[0]))
+                    list_q_num.append('0')
+                else:
+                    logger.error(u'Cannot find a question number for title: {}'.format(q[0]))
+                    list_q_num.append(None)
+                    
+        # Pass the content to parse_dialogs()
+        question_obj = []
+        tmp_cnt = 0
+        for q in list_of_questions:
+            question_obj.append((list_q_num[tmp_cnt],q[0],self.parse_dialogs(q[1],disable_event)))
+            tmp_cnt +=1
         
-        # Drop the first <strong> tag. We know them must come immediately after the title.
+        return question_obj
+    
+    
+        """
+        ### OLD CODE ###
         for q in list_of_questions:
             elem = q[1][0] # first <p> block
             elem.xpath('./strong')[0].drop_tag()
-
+            # Sometimes the name and term '議員' are split into 2 <strong> boxes, tailed by a colon ':'.
+            # Join them
+            if len(elem.xpath('./strong'))>1:
+                tmp_speaker = elem.xpath('./strong')
+                if tmp_speaker[1].xpath('preceding-sibling::*[1]')[0] == tmp_speaker[0] and tmp_speaker[1].tail == u':':
+                    tmp_speaker[0].text += tmp_speaker[1].text
+                    tmp_speaker[1].drop_tree()
+        
+        #for q in list_of_questions:
+        #    print q[0],len(q[1])
+        
         # Process like English version
         question_obj = []
         for q in list_of_questions:
@@ -1023,10 +1384,15 @@ class CouncilHansard(object):
             #get rid of number
             tmp_q.text = None
             #question speaker (asker)
-            tmp_speaker = tmp_q.xpath('./strong')[0]
-            q_speaker = tmp_q.xpath('./strong')[0].text
-            #We do not need these text anymore. Drop them.
-            tmp_q.remove(tmp_speaker)
+            tmp_speaker = tmp_q.xpath('./strong')
+            if tmp_speaker != []:
+                q_speaker = tmp_speaker[0].text
+                #We do not need these text anymore. Drop them.
+                tmp_q.remove(tmp_speaker[0])
+            else:
+                q_speaker = u'Unknown'
+
+            
             #Replace the original p block with this, and append it to body
             q[1][0] = tmp_q #notice q[1][0] is still an Element object
             
@@ -1034,7 +1400,8 @@ class CouncilHansard(object):
             
             # Now begin putting speeches into containers, until a new speaker is found
             #1. A <strong> box, tailed by some text
-
+            
+            
             q_body = [] #holds all (speaker,speech) tuples
             q_speech_container = '' #holds all speeches as a list of Elements
             for block in q[1]:#remember a block can be <p> or <table> or else
@@ -1046,19 +1413,20 @@ class CouncilHansard(object):
                         q_speech_container = ''
                         # Store the speaker and get rid of the <strong> block
                         q_speaker = block.xpath('./strong')[0].text
-                        block.xpath('./strong')[0].text = None
                         
+                        block.xpath('./strong')[0].text = None
                         # Get rid of extra colon
                         if block.xpath('./strong')[0].tail[0]==':':
                             block.xpath('./strong')[0].tail = block.xpath('./strong')[0].tail[1:]
                         
                         etree.strip_tags(block,'strong')#we know there will only be 1 <strong> block
                 q_speech_container = ''.join([q_speech_container,remove_hr_tags(tostring(block))]) 
-            q_body.append((q_speaker,q_speech_container))#do not forget the last speech
+            if q_speech_container != '':
+                q_body.append((q_speaker,q_speech_container))#do not forget the last speech
             question_obj.append((q_num,q[0],q_body))#put each question into question_obj
             
         return question_obj
-    
+        """
     
     def _parse_bills(self,elem_list):
         """
@@ -1193,7 +1561,8 @@ class CouncilHansard(object):
             if elem.xpath('./strong') == elem.getchildren() and elem.text is None and len(elem.xpath('./strong'))>1:
                 tmp_str = u''
                 for sng in elem.xpath('./strong'):
-                    tmp_str += sng.text
+                    if sng.text:
+                        tmp_str += sng.text 
                 elem.xpath('./strong')[0].text = tmp_str
                 for sng in elem.xpath('./strong')[1:]:
                     sng.drop_tree()
@@ -1366,8 +1735,10 @@ class CouncilHansard(object):
         
         self.motions = motions_obj
         
+        
     def _parse_CE_Q_AND_A(self,elem_list):
         self.ce_q_and_a = self.parse_dialogs(elem_list)
+        
         
     def _parse_ending(self,elem_list):
         # There may be an <hr> - but do not use it for splitting footnotes
@@ -1384,50 +1755,73 @@ class CouncilHansard(object):
         return self.parse_dialogs(dialog_list)
     
     
-    # Functions
+    # Common Functions
     
-    def parse_dialogs(self,elem_list):
+    def parse_dialogs(self,elem_list,disable_event = False):
         """
         Given dialogs as a list of Element objects,
         returns a list of 2-tuple [(speaker_0,speech), (speaker_1,speech), ...]
         The speech is in form of raw HTML string. Sometimes speaker will be NONE,
         which indicates some events happens between dialogs.
+        The DISABLE_EVENT flag indicates whether to look for events.
+        Usually set to FALSE except for written questions.
         """
         # we do not have to care about titles here - they are supposed to be filtered out
         # already before coming in.
         # Sometimes there are text enclosed by brackets i.e. (xxx) when events happens.
         
-        # Before start, sometimes a name is split into 2 <strong> blocks.
+        # Before start, sometimes a speaker's name is split into 2 <strong> blocks.
         # Merge them for easier processing
-        for block in elem_list:
-            sub_block = block.getchildren()
-            if sub_block is not None:
-                if len(sub_block) == 2:
-                    if sub_block[0].tag == 'strong' and sub_block[1].tag == 'strong' \
-                    and sub_block[1].xpath('preceding-sibling::*[1]')[0] == sub_block[0] \
-                    and sub_block[0].tail is None:
-                        sub_block[0].text += sub_block[1].text
-                        sub_block[1].drop_tree()
-        
-        
+        for elem in elem_list:
+            strong_boxes = elem.xpath('.//strong')
+            if len(strong_boxes)>=2:
+                # at the moment, check only the first 2 strong boxes
+                # may extent this check if exceptional case is found in future
+                if strong_boxes[1].xpath('preceding-sibling::*[1]') !=[]:
+                    if strong_boxes[1].xpath('preceding-sibling::*[1]')[0] == strong_boxes[0]\
+                    and strong_boxes[0].tail is None and\
+                    strong_boxes[0].tag == 'strong' and strong_boxes[1].tag == 'strong':
+                        if strong_boxes[0].text is not None and strong_boxes[1].text is not None:
+                            strong_boxes[0].text += strong_boxes[1].text
+                        else:
+                            strong_boxes[0].text = strong_boxes[1].text
+                        strong_boxes[1].drop_tree()
+                
+        # Process the speeches
         speaker = None
         speech = u''
         list_of_speeches = []
         event_pattern = ur'^\(.+\)$'
         for elem in elem_list:
             #print elem.text_content()
-            event_match = re.match(event_pattern, elem.text_content())
-            if event_match is not None:
-                #An event happens.
-                #store previous speech
-                if speech != u'' and speech is not None:
+            
+            # Check for events. Can be disable via 'disable_event' flag
+            if disable_event is False:
+                event_match = re.match(event_pattern, elem.text_content().strip())
+                if event_match is not None:
+                    #An event happens.
+                    #store previous speech
+                    if speech != u'' and speech is not None:
+                        list_of_speeches.append((speaker,speech.lstrip(u':')))
+                        #speaker = None
+                        speech = u''
+                    #store event
+                    list_of_speeches.append((None,elem.text_content().lstrip(u':')))
+                    continue
+                
+            # sometimes <hr> tags corrupts the format, such that the text is not in <p> box.
+            if elem.tag == 'strong' and elem.tail is not None:
+                # A new speaker
+                # save previous speech
+                if speech != u'':
                     list_of_speeches.append((speaker,speech))
-                    #speaker = None
+                    speaker = u''
                     speech = u''
-                #store event
-                list_of_speeches.append((None,elem.text_content()))
+                speaker = elem.text.strip()
+                speech = elem.tail.lstrip(u':')
+            
+            # normal element
             else:
-                # not an event
                 # Check if there is a new speaker
                 if len(elem.xpath('./strong')) >0 and elem.xpath('./strong')[0].tail is not None:
                     # save last speech
@@ -1436,12 +1830,13 @@ class CouncilHansard(object):
                         speaker = u''
                         speech = u''
                     speaker = elem.xpath('./strong')[0].text_content()
-                    elem.xpath('./strong')[0].drop_tree()
+                    elem.xpath('./strong')[0].drop_tree() #remove speaker so we have only text
                 # remove heading ':'
                 if elem.text:
                     elem.text = elem.text.lstrip(u':')
 
                 speech = u''.join([speech,remove_hr_tags(tostring(elem))])
+        # Save last one
         if speech.strip() != u'' and speech is not None:
             list_of_speeches.append((speaker,speech))
             
@@ -1464,8 +1859,8 @@ class CouncilHansard(object):
         name_pattern_e = ur'[A-Z\s-]+HONOURABLE\s(?P<name>[A-Z\s-]+)'
         name_pattern_c = ur'(?P<name>.+)議員'
         for member in elem_list:
-            full_name = member.text_content()
-            if full_name is not None:
+            full_name = member.text_content().strip()
+            if full_name is not None and full_name!='':
                 # Get only the part before comma
                 member_str = full_name.split(',')[0]
                 # Get rid of all title strings - the name lives after the word 'HONOURABLE'
@@ -1478,34 +1873,58 @@ class CouncilHansard(object):
                     name_string = name_pattern_match.group('name')
                     list_members.append((name_string,full_name))
                 else:
-                    logger.error(u'Cannot find the name for string {}'.format(member_str))
+                    logger.error(u'Cannot find the name for member string: {}'.format(member_str))
+                    self._count_errors+=1
+                    continue
                     #store only full name+titles
                     #list_members.append(('',full_name))
             
         return list_members
     
     
-    def _build_question_map(self):
-        # Map the question numbers to question objects.
-        # Since sometimes we may get urgent questions that have their own numbering system,
-        # the value in the map maybe a list
-        self.question_map = {}
-        for question in self.questions:
-            if question.number not in self.question_map:
-                self.question_map[question.number] = question
-            else:
-                val = self.question_map[question.number]
-                if isinstance(val, list):
-                    val.append(question)
-                else:
-                    self.question_map[question.number] = [val, question]
+    def _build_question_map(self,question_list):
+        # Map the question numbers to RawCouncilQuestion instances.
+        # We get the question number from either self.oral_questions and self.written_questions,
+        # and build a corresponding uid for each.
+        # Returns one list of RawCouncilQuestion objects.
+        from ..models import RawCouncilQuestion
+        UID_PREFIX = RawCouncilQuestion.UID_PREFIX
+        if question_list is None or question_list == []:
+            return None
+        
+        raw_date = self.raw_date
+        lang_char = u'e' if self.language==LANG_EN else u'c'
+        question_map = []
+        
+        for question in question_list:
+            question_number = question[0]
+            # Generate an uid
+            #example: question-20150603-u3-e
+            q_obj = None
+            try:
+                question_uid = u'{}-{}-{}-{}'.format(UID_PREFIX,raw_date,question_number,lang_char)
+                q_obj = RawCouncilQuestion.objects.get_by_uid(question_uid)
+            except:
+                try:
+                # Perhaps it is an urgent question
+                    question_uid = u'{}-{}-u{}-{}'.format(UID_PREFIX,raw_date,question_number,lang_char)
+                    q_obj = RawCouncilQuestion.objects.get_by_uid(question_uid)    
+                except:
+                    # Cannot find a matching
+                    logger.warn(u"Cannot find a matching question for Oral question: {}-{}".format(question_number,question[1]))
+            
+            # Append anyway
+            question_map.append(q_obj)
+            #print q_obj
+            
+        return question_map            
                     
                     
-    def _dump_as_fixture(self):
+    def _dump_as_fixture(self,append_str='cleaned'):
         """
         Saves the raw html to a fixture for testing
         """
-        with open('raw/tests/fixtures/docs/{}_cleaned.html'.format(self.uid), 'wb') as f:
+        with open('raw/tests/fixtures/docs/{}_{}.html'.format(self.uid,append_str), 'wb') as f:
             f.write(etree.tostring(self.tree))
 
 

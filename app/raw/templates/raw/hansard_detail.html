@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <h1>Council Formal Hansards - {{ parser.uid }}</h1>
+  <h1>Council Formal Hansards - {{ object.uid }}</h1>
   <p>
     <a href="{{ object.url }}">Original document</a>
   </p>
@@ -72,7 +72,7 @@
   	</p>
   {% endif %}
   
-  {% if parser.tabled_papers %}
+  {% if parser.tabled_legislation or  parser.tabled_other_papers%}
   	<hr>
   	<a name="TABLING OF PAPERS"></a>
   	<h2>TABLING OF PAPERS</h2>
@@ -111,7 +111,46 @@
   	
   {% endif %}
   
+  {% if parser.urgent_questions or parser.oral_questions or parser.written_questions%}
+  <hr>
+  <h2>QUESTION LIST</h2>
+  <ul>
+  {% if parser.urgent_questions %}
+  	{% for question in parser.urgent_questions %}
+  	  <li>{{ question.0 }} - <b>{{ question.1 }}</b></li>
+  	{% endfor %}
+  {% endif %}
+  {% if parser.oral_questions %}
+  	{% for question in parser.oral_questions %}
+  	  <li>{{ question.0 }} - <b>{{ question.1 }}</b></li>
+  	{% endfor %}
+  {% endif %}
+  {% if parser.written_questions %}
+  	{% for question in parser.written_questions %}
+  	  <li>{{ question.0 }} - <b>{{ question.1 }}</b></li>
+  	{% endfor %}
+  {% endif %}
+  </ul>
+  {% endif %} 
   
+  {% if parser.urgent_questions %}
+  <hr>
+  <a name="QUESTIONS UNDER RULE 24(4) OF THE RULES OF PROCEDURE"></a>
+  	<h2>URGENT QUESTIONS</h2>
+  	<ul>
+  	{% for question in parser.urgent_questions %}
+  		<li><h4> {{ question.0 }} - {{ question.1 }}</h4>
+  		<p>
+  		<ol>
+  		{% for speech in question.2%}
+  			<br/> <b>{{speech.0}}</b> said: {{speech.1|safe}}<br/>
+  		{% endfor %}
+  		</ol>
+  		</p>
+  		</li>
+  	{% endfor %}
+  	</ul>
+  {% endif %}
   
   {% if parser.oral_questions %}
   <hr>

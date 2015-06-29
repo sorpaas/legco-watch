@@ -22,7 +22,4 @@ More details could be found on:
 http://www.legco.gov.hk/odata/chinese/vrdb.html, 
 but the API seems slow when I visited (May 2015).
 Meta-data: http://app.legco.gov.hk/vrdb/odata/$metadata, 
-May help when we bind these properties as keys to our models.
-
-
 """
