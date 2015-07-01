@@ -20,6 +20,10 @@ from ..models.constants import *
 from lxml.etree import tostring
 #from ..models import *
 
+# Be careful that there are two convert to string functions:
+# 'tostring' converts an Element object to HTML string
+# 'to_string' converts unicode object to string 
+
 logger = logging.getLogger('legcowatch-docs')
 logger.setLevel(logging.INFO)
 # Global header patterns. All are <strong> and upper case. Some
@@ -162,9 +166,11 @@ class CouncilHansard(object):
         
         # Use the lxml cleaner
         cleaner = Cleaner()
+        cleaner.safe_attrs_only = False # Preserve styles
         parser = HTMLParser(encoding='utf-8')
         # Finally, load the cleaned string to an ElementTree
         self.tree = cleaner.clean_html(lxml.html.fromstring(to_string(self.source), parser=parser))
+        self._convert_bold_to_strong()
         
         logger.info(u'Finished _load().')
     
@@ -173,6 +179,13 @@ class CouncilHansard(object):
         Removes/combines some of tags to make parsing easier
         """
         #etree.strip_tags(self.tree, 'strong')#we need some <strong> tags in hansard
+        
+        etree.strip_tags(self.tree, 'div')
+        try:
+            self.tree.xpath('//div')[0].tag = 'body'
+        except IndexError:
+            pass
+        #pdb.set_trace()
         
         # CapsLock also happens in Chinese (in titles)
         for xx in self.tree.find_class('pydocx-caps'):
@@ -322,6 +335,7 @@ class CouncilHansard(object):
         logger.info(u'Language: {}'.format(self.language))
         
         main_content = self._parse_main_heading(self.tree.xpath('//body/*'))
+        
         ### parsing main_content: ###
         # Strategy: we do not make any assumption on the order of occurrence of each section.
         # We will loop over all Elements of main_content, checking for headers - if a <strong> tag
@@ -342,10 +356,10 @@ class CouncilHansard(object):
         
         for part in main_content:
             if self.language==LANG_EN:
-                if (part.xpath('./strong') is not None and part.text_content().isupper()) or part.tag=='strong':
+                if (part.xpath('.//strong') is not None and part.text_content().strip().isupper()) or part.tag=='strong':
                     #Potential header
                     #print part.text_content()
-                    potential_header = part.text_content()
+                    potential_header = part.text_content().strip()
                     if potential_header in LIST_OF_HEADERS:
                         # New header found
                         if elem_list !=[]:
@@ -688,6 +702,7 @@ class CouncilHansard(object):
                         break
      
         self.clerks = clerk_list
+        
         logger.info(u'Finished parsing clerks present.')
         
         return main_content
@@ -828,18 +843,22 @@ class CouncilHansard(object):
         logger.info(u'Parsing legislation table...')
         if elem_list is None:
             return None
-        
+        print elem_list.tag
         table = None
         # If there is a table, we work on it only
-        for elem in elem_list:
-            if elem.tag == 'table':
-                table = elem
-            break
-        else:
-            # Cannot find any table
-            logger.error(u'Cannot find a table for legislation.')
-            return None
-
+        try:
+            if elem_list.tag == 'table':
+                table = elem_list
+        except AttributeError:
+            for elem in elem_list:
+                if elem.tag == 'table':
+                    table = elem
+                    break
+            else:
+                # Cannot find any table
+                logger.error(u'Cannot find a table for legislation.')
+                return None
+        
 
         legislation_list = []
         if table is not None:
@@ -1925,7 +1944,21 @@ class CouncilHansard(object):
         """
         with open('raw/tests/fixtures/docs/{}_{}.html'.format(self.uid,append_str), 'wb') as f:
             f.write(etree.tostring(self.tree))
-
+    
+    def _convert_bold_to_strong(self):
+        """
+        Given a tree with styles, convert the tags of elements to 'strong' if the font style is bold.
+        This is mainly for pre-2012 Hansards.
+        """
+        for elem in self.tree.xpath('//*'):
+            try:
+                style =  elem.attrib['style']
+            except KeyError: # some Elements do not have style
+                continue
+            if 'font-weight:bold' in style:
+                elem.tag = 'strong'
+                #print elem.tag
+    
 
 # Common utils
 def get_all_hansards(language=-1):
