@@ -15,6 +15,7 @@ import lxml.etree
 import lxml.html
 from lxml.html import HTMLParser
 from lxml.html.clean import clean_html,Cleaner
+from logging import raiseExceptions
 
 
 HTML = 1
@@ -143,11 +144,12 @@ def utf2html(ustring):
     ustring = ustring.replace('\t','    ')
     return ustring
 
-def merge_docx(docx_list=None, out_htmlpath = None, file_out = True):
+def merge_docx(docx_list=None, out_htmlpath=None):
     """
     docx_list is a list of strings which contains the (absolute) path of DOC/DOCX files to be merged.
     MERGE_DOCX() will follow the index order of docx_list for appending.
-    Returns the HTML file as string, and 
+    Returns the HTML file as string. 
+    If OUT_HTMLPATH is given, write the HTML file out as well.
     """
     if docx_list is None:
         return None
@@ -160,8 +162,19 @@ def merge_docx(docx_list=None, out_htmlpath = None, file_out = True):
             tmp_html =  PyDocX.to_html(path)
             html_list.append(cleaner.clean_html(lxml.html.fromstring(tmp_html, parser=parser)))
         except:
-            break
+            #'MalformedDocxException'
+            try:
+                # Pretend it is a html
+                html_file = '{}.html'.format(path)
+                with open(html_file, 'rb') as tmp:
+                    tmp_html = tmp.read()
+                tmp_html = tmp_html.decode('utf-8')
+                html_list.append(cleaner.clean_html(lxml.html.fromstring(tmp_html, parser=parser)))
+            except:
+                # Cannot convert
+                continue
     
+    #print html_list
     if len(html_list)>1:
         #Append element at the end of first body
         main_body = html_list[0].xpath('./body')[0]
@@ -169,13 +182,21 @@ def merge_docx(docx_list=None, out_htmlpath = None, file_out = True):
             elem_list = tree.xpath('./body/*')
             for elem in elem_list:
                 main_body.append(elem)
-        
+    elif len(html_list)==1:
+        main_body = html_list[0].xpath('./body')[0]
+    else:
+        try:
+            main_body = html_list[0].xpath('./body')[0]
+        except IndexError:
+            # no body content. Most likely just an image/appendix
+            return None
+    
     # Convert ElementTree back to string
     # in this way we will lose the 'style' info in html_list[0][0], which is usually in header,
     # but not sure if it will cause any differences to parser later on. Probably not.
     html_str = lxml.etree.tostring(main_body)
     
-    if file_out:
+    if out_htmlpath is not None:
         with open(out_htmlpath, 'wb') as tmp:
             tmp.write(html_str.encode('utf-8'))
                 
