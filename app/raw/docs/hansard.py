@@ -297,6 +297,7 @@ class CouncilHansard(object):
         #Notice that this html is not the same as from RawCouncilHansard._dump_as_fixture(),
         #and is stored in a different folder
         
+        
         self._dump_as_fixture(append_str='cleaned')
         logger.info(u'Finished _clean().')
                 
@@ -858,8 +859,7 @@ class CouncilHansard(object):
                 # Cannot find any table
                 logger.error(u'Cannot find a table for legislation.')
                 return None
-        
-
+            
         legislation_list = []
         if table is not None:
             # Each entry is enclosed by <tr></tr>, with each block in a <td></td>
@@ -903,11 +903,15 @@ class CouncilHansard(object):
         
         table = None
         # If there is a table, we work on it directly
-        for elem in elem_list:
-            if elem.tag == 'table':
-                table = elem
-                break
-            
+        try:
+            if elem_list.tag == 'table':
+                table = elem_list
+        except AttributeError:
+            for elem in elem_list:
+                if elem.tag == 'table':
+                    table = elem
+                    break
+        
         paper_list = []
         if table is not None:
             # table for Other Papers are 3-columns, with middle column contains a dash only.
@@ -921,7 +925,6 @@ class CouncilHansard(object):
                 if len(entry.xpath('./td'))==3 or len(entry.xpath('./td'))==2:
                     # Normal case
                     paper_no = entry.xpath('./td')[0].text_content().strip()
-                    
                     paper_title_and_content = entry.xpath('./td')[-1]
                     # Add a '\n' for evert <br> tag encountered so Python can recognize as newline
                     for br in paper_title_and_content.xpath('.//br'):
@@ -946,9 +949,13 @@ class CouncilHansard(object):
                 else:
                     logger.warn(u'Unrecognised number of columns. Expected 1, 2 or 3, got {}.'.format(len(entry.xpath('./td'))))
             paper_no = None
+                      
+            # If the table is the only element, we are done
+            if table == elem_list:
+                return paper_list
+            # Otherwise we remove it and go on
             elem_list.remove(table)
-            
-        
+
         # Even if there is a table, there may be item(s) not in it.
         # And for Chinese Hansard, Other Papers section usually is not in a formal table.
         if elem_list != []:
@@ -1144,6 +1151,15 @@ class CouncilHansard(object):
         Parse English xxx_answers to questions.
         """
         logger.info(u'Parsing (English) answers to questions.')
+        
+        # Drop <span> tags for pre-2012 hansard question number
+        for elem in elem_list:
+            if elem.tag == 'p' and elem.getchildren() != []:
+                first_child = elem.getchildren()[0]
+                if first_child.tag == 'span' and first_child.text is not None:
+                    if first_child.text.replace('.','').isdigit():
+                        first_child.drop_tag()
+
         #break the section into questions
         q_name=''
         q_elem=[]
@@ -1787,6 +1803,13 @@ class CouncilHansard(object):
         # we do not have to care about titles here - they are supposed to be filtered out
         # already before coming in.
         # Sometimes there are text enclosed by brackets i.e. (xxx) when events happens.
+        
+        for elem in elem_list:
+            spans = elem.xpath('.//span')
+            if spans != []:
+                for xx in spans:
+                    xx.drop_tag()
+        
         
         # Before start, sometimes a speaker's name is split into 2 <strong> blocks.
         # Merge them for easier processing
