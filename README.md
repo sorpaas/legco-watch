@@ -35,10 +35,10 @@ There are some Dockerfiles that build a set of docker containers with all of the
  - worker - Celery worker
  - scrapydserver - Scrapyd, but don't think you need this anymore
  
-[Fig](www.fig.sh) is a tool for configuring docker containers and quickly launching them.  
-`fig.yml` is the Fig configuration file, and defines how the containers should be set up so that they talk to each other.
+Docker Compose is a tool for configuring docker containers and quickly launching them.  
+`docker-compose.yml` is the Fig configuration file, and defines how the containers should be set up so that they talk to each other.
 
-Once you've built your containers, `fig up dev` should launch the dev environment.  You can ssh in with user `root`
+Once you've built your containers, `docker-compose up dev` should launch the dev environment.  You can ssh in with user `root`
 and password `foo`.
 
 If you don't want to use docker, you can just get the apt-get dependencies and pip packages from within the requirements
