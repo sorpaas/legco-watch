@@ -26,7 +26,9 @@ COPY files/local.py ${PROJECT_PATH}/app/legcowatch/local.py
 COPY files/legco-watch.ini ${PROJECT_PATH}/legco-watch.ini
 COPY files/bootstrap.sh ${PROJECT_PATH}/bootstrap.sh
 
+RUN chmod +x ${PROJECT_PATH}/bootstrap.sh
+
 # Runs syncdb, migrate, collectstatic, then starts the uwsgi server
-ENTRYPOINT ["./bootstrap.sh"]
+ENTRYPOINT ["sh" "./bootstrap.sh"]
 
 EXPOSE 8001
