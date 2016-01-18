@@ -126,6 +126,7 @@ class CouncilHansard(object):
         self._parse()
         #self._post_process()
         
+        
     def __repr__(self):
         return u'<CouncilHansard: {}>'.format(self.uid)
     
@@ -179,7 +180,6 @@ class CouncilHansard(object):
         Removes/combines some of tags to make parsing easier
         """
         #etree.strip_tags(self.tree, 'strong')#we need some <strong> tags in hansard
-        
         etree.strip_tags(self.tree, 'div')
         try:
             self.tree.xpath('//div')[0].tag = 'body'
@@ -223,7 +223,7 @@ class CouncilHansard(object):
                 xx.drop_tree()
                 #print 'here'
                 #xx.getparent().remove(xx)
-        
+
         #Some testing scripts
         #tmp_content = self.tree.xpath('//body/p[138]')[0]
         #tmp_str = tmp_content.text_content()
@@ -238,7 +238,7 @@ class CouncilHansard(object):
         #print len(self.tree.xpath('//hr'))
         if len(self.tree.xpath('//hr'))>2:
             # If there are 2 <hr> tags, they divide the hansard
-            
+
             # Usually this happens for Chinese, e.g. see 2015-04-22: Only Chinese version
             # has more than 2 <hr> tags but English version is alright.
             # A strategy is to get rid of excess <hr> tags to make it fit into the 3-part structure
@@ -254,8 +254,6 @@ class CouncilHansard(object):
                 pattern_clerk = 'CLERK'
                 #pattern_suspend = 'SUSPENSION'
                 #pattern_next = 'NEXT MEETING'
-
-            #print(len(self.tree.xpath('//body//hr')))
             
             #search for the clerk block, and strip all <hr> before it
             for block in self.tree.xpath('//body/*'):
@@ -292,12 +290,10 @@ class CouncilHansard(object):
                         p.clear()
                         subtext = etree.SubElement(p, "strong")
                         subtext.text = tmp_text
-        
         #Before we do anything, we may want to dump the 'cleaned' hansard for inspection in browser etc.
         #Notice that this html is not the same as from RawCouncilHansard._dump_as_fixture(),
         #and is stored in a different folder
-        
-        
+
         self._dump_as_fixture(append_str='cleaned')
         logger.info(u'Finished _clean().')
                 
@@ -451,6 +447,7 @@ class CouncilHansard(object):
                 
         logger.info(u'Done parsing all recognised sections.')
         self._dump_as_fixture(append_str='end')
+        #self._dump_as_fixture()
         
     ## Parsers for sections
     def _parse_main_heading(self,heading_list):  
@@ -1965,8 +1962,12 @@ class CouncilHansard(object):
         """
         Saves the raw html to a fixture for testing
         """
-        with open('raw/tests/fixtures/docs/{}_{}.html'.format(self.uid,append_str), 'wb') as f:
-            f.write(etree.tostring(self.tree))
+        try:
+            print 'raw/tests/fixtures/docs/{}_{}.html'.format(self.uid,append_str)
+            with open('raw/tests/fixtures/docs/{}_{}.html'.format(self.uid,append_str), 'wb') as f:
+                f.write(etree.tostring(self.tree))
+        except:
+            print "Cannot open the file"
     
     def _convert_bold_to_strong(self):
         """
