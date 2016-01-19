@@ -39,8 +39,8 @@ description of what each container does:
  - worker - Celery worker
  - scrapydserver - Scrapyd, but don't think you need this anymore
  
-Docker Compose is a tool for configuring docker containers and quickly launching them.  
-`docker-compose.yml` is the Fig configuration file, and defines how the
+Docker Compose is a tool for configuring docker containers and quickly launching
+them. `docker-compose.yml` is the Fig configuration file, and defines how the
 containers should be set up so that they talk to each other.
 
 If you don't want to use Docker, currently you are totally on your own. There
