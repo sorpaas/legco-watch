@@ -43,6 +43,9 @@ Docker Compose is a tool for configuring docker containers and quickly launching
 them. `docker-compose.yml` is the Fig configuration file, and defines how the
 containers should be set up so that they talk to each other.
 
+To execute Django management commands, use `docker-compose run appserver python
+manage.py`.
+
 If you don't want to use Docker, currently you are totally on your own. There
 are two files that you will definitely need to change besides installing all the
 requirements.

@@ -22,12 +22,13 @@ ENV INSIDE_DOCKER TRUE
 WORKDIR ${PROJECT_PATH}
 ADD requirements ${PROJECT_PATH}/requirements
 RUN pip install -r requirements/base_reqs.txt
-RUN pip install uwsgi
 RUN pip install -r requirements/celery_reqs.txt
 
 ADD . ${PROJECT_PATH}
 
+WORKDIR ${PROJECT_PATH}/app
+
 # Runs syncdb, migrate, collectstatic, then starts the uwsgi server
-CMD ["bin/appserver.sh"]
+CMD ["../bin/appserver.sh"]
 
 EXPOSE 8001

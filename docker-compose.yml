@@ -14,7 +14,7 @@ appdata:
     - "/legco-data"
 
 db:
-  image: postgres:latest
+  image: postgres:9.3
   ports:
     - "5432"
   volumes_from:
@@ -37,7 +37,7 @@ appserver:
     - "8001:8001"
   volumes:
     - ".:/legcowatch"
-  command: "bin/appserver.sh"
+  command: "../bin/appserver.sh"
 
 worker:
   build: .
@@ -48,7 +48,9 @@ worker:
     - appdata
   volumes:
     - ".:/legcowatch"
-  command: "bin/worker.sh"
+  command: "../bin/worker.sh"
+  environment:
+    C_FORCE_ROOT: true
 
 rabbitmq:
   image: rabbitmq:latest
