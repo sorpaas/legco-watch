@@ -1,40 +1,32 @@
-dev:
-  image: legcowatch/dev
-  ports:
-    - "2223:22"
-    - "8000:8000"
-  volumes:
-    - ./:/docker
-  volumes_from:
-    - dbdata
-    - logdata
-    - appdata
-  links:
-    - db:db
-    - rabbitmq:rabbitmq
-
 dbdata:
-  image: legcowatch/dbdata
-  command: echo
+  image: debian:7.7
+  volumes:
+    - "/var/lib/postgresql/data"
 
 logdata:
-  image: legcowatch/logdata
-  command: echo
+  image: debian:7.7
+  volumes:
+    - "/logs"
 
 appdata:
-  image: legcowatch/appdata
-  command: echo
+  image: debian:7.7
+  volumes:
+    - "/legco-data"
 
 db:
-  image: legcowatch/dbserver
+  image: postgres:latest
   ports:
-    - "2345:5432"
+    - "5432"
   volumes_from:
     - dbdata
     - logdata
+  environment:
+    POSTGRES_PASSWORD: "postgres"
+    POSTGRES_USER: "postgres"
+    POSTGRES_DB: "postgres"
 
 appserver:
-  image: legcowatch/appserver
+  build: .
   links:
     - db:db
     - rabbitmq:rabbitmq
@@ -43,14 +35,27 @@ appserver:
     - appdata
   ports:
     - "8001:8001"
+  volumes:
+    - ".:/legcowatch"
+  command: "bin/appserver.sh"
 
 worker:
-  image: legcowatch/worker
+  build: .
   links:
     - db:db
     - rabbitmq:rabbitmq
   volumes_from:
     - appdata
+  volumes:
+    - ".:/legcowatch"
+  command: "bin/worker.sh"
 
 rabbitmq:
-  image: legcowatch/rabbitmq
+  image: rabbitmq:latest
+  volumes_from:
+    - logdata
+
+scrapydserver:
+  build: docker/scrapyd
+  volumes_from:
+    - logdata
