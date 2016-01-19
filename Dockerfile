@@ -20,6 +20,7 @@ ENV PROJECT_PATH /legcowatch
 ENV INSIDE_DOCKER TRUE
 
 WORKDIR ${PROJECT_PATH}
+ADD requirements ${PROJECT_PATH}/requirements
 RUN pip install -r requirements/base_reqs.txt
 RUN pip install uwsgi
 RUN pip install -r requirements/celery_reqs.txt
