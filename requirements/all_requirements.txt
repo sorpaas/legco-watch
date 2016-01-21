@@ -5,7 +5,6 @@ boto==2.38.0
 celery==3.1.18
 cffi==1.0.3
 characteristic==14.3.0
-cryptography==0.9
 cssselect==0.9.1
 Django==1.6.4
 django-bower==5.0.4
@@ -48,7 +47,9 @@ six==1.9.0
 South==1.0.2
 sqlparse==0.1.15
 Twisted==15.2.1
-uWSGI==2.0.10
+uWSGI==2.0.12
 w3lib==1.11.0
 Werkzeug==0.10.4
 zope.interface==4.1.2
+cryptography
+
