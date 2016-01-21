@@ -53,7 +53,7 @@ HTTPCACHE_DIR = os.path.join(DATA_DIR_BASE, 'httpcache')
 # Always fetch the bleeding-edge webpage - no caching
 # see 'downloader-middleware' section of Scrapy for details
 # To re-enable caching, delete it 
-HTTPCACHE_POLICY = 'scrapy.contrib.httpcache.RFC2616Policy'
+#HTTPCACHE_POLICY = 'scrapy.contrib.httpcache.RFC2616Policy'
 
 # Allow more bandwidth and time for downloading large files (e.g. Hansard)
 CONCURRENT_REQUESTS = 5 #default 16

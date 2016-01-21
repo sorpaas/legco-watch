@@ -1,0 +1,1 @@
+web: gunicorn legcowatch.wsgi --log-file -
