@@ -20,6 +20,10 @@ from ..models.constants import *
 from lxml.etree import tostring
 #from ..models import *
 
+# Be careful that there are two convert to string functions:
+# 'tostring' converts an Element object to HTML string
+# 'to_string' converts unicode object to string 
+
 logger = logging.getLogger('legcowatch-docs')
 logger.setLevel(logging.INFO)
 # Global header patterns. All are <strong> and upper case. Some
@@ -122,6 +126,7 @@ class CouncilHansard(object):
         self._parse()
         #self._post_process()
         
+        
     def __repr__(self):
         return u'<CouncilHansard: {}>'.format(self.uid)
     
@@ -162,9 +167,11 @@ class CouncilHansard(object):
         
         # Use the lxml cleaner
         cleaner = Cleaner()
+        cleaner.safe_attrs_only = False # Preserve styles
         parser = HTMLParser(encoding='utf-8')
         # Finally, load the cleaned string to an ElementTree
         self.tree = cleaner.clean_html(lxml.html.fromstring(to_string(self.source), parser=parser))
+        self._convert_bold_to_strong()
         
         logger.info(u'Finished _load().')
     
@@ -173,6 +180,12 @@ class CouncilHansard(object):
         Removes/combines some of tags to make parsing easier
         """
         #etree.strip_tags(self.tree, 'strong')#we need some <strong> tags in hansard
+        etree.strip_tags(self.tree, 'div')
+        try:
+            self.tree.xpath('//div')[0].tag = 'body'
+        except IndexError:
+            pass
+        #pdb.set_trace()
         
         # CapsLock also happens in Chinese (in titles)
         for xx in self.tree.find_class('pydocx-caps'):
@@ -210,7 +223,7 @@ class CouncilHansard(object):
                 xx.drop_tree()
                 #print 'here'
                 #xx.getparent().remove(xx)
-        
+
         #Some testing scripts
         #tmp_content = self.tree.xpath('//body/p[138]')[0]
         #tmp_str = tmp_content.text_content()
@@ -225,7 +238,7 @@ class CouncilHansard(object):
         #print len(self.tree.xpath('//hr'))
         if len(self.tree.xpath('//hr'))>2:
             # If there are 2 <hr> tags, they divide the hansard
-            
+
             # Usually this happens for Chinese, e.g. see 2015-04-22: Only Chinese version
             # has more than 2 <hr> tags but English version is alright.
             # A strategy is to get rid of excess <hr> tags to make it fit into the 3-part structure
@@ -241,8 +254,6 @@ class CouncilHansard(object):
                 pattern_clerk = 'CLERK'
                 #pattern_suspend = 'SUSPENSION'
                 #pattern_next = 'NEXT MEETING'
-
-            #print(len(self.tree.xpath('//body//hr')))
             
             #search for the clerk block, and strip all <hr> before it
             for block in self.tree.xpath('//body/*'):
@@ -279,11 +290,10 @@ class CouncilHansard(object):
                         p.clear()
                         subtext = etree.SubElement(p, "strong")
                         subtext.text = tmp_text
-        
         #Before we do anything, we may want to dump the 'cleaned' hansard for inspection in browser etc.
         #Notice that this html is not the same as from RawCouncilHansard._dump_as_fixture(),
         #and is stored in a different folder
-        
+
         self._dump_as_fixture(append_str='cleaned')
         logger.info(u'Finished _clean().')
                 
@@ -322,6 +332,7 @@ class CouncilHansard(object):
         logger.info(u'Language: {}'.format(self.language))
         
         main_content = self._parse_main_heading(self.tree.xpath('//body/*'))
+        
         ### parsing main_content: ###
         # Strategy: we do not make any assumption on the order of occurrence of each section.
         # We will loop over all Elements of main_content, checking for headers - if a <strong> tag
@@ -342,10 +353,10 @@ class CouncilHansard(object):
         
         for part in main_content:
             if self.language==LANG_EN:
-                if (part.xpath('./strong') is not None and part.text_content().isupper()) or part.tag=='strong':
+                if (part.xpath('.//strong') is not None and part.text_content().strip().isupper()) or part.tag=='strong':
                     #Potential header
                     #print part.text_content()
-                    potential_header = part.text_content()
+                    potential_header = part.text_content().strip()
                     if potential_header in LIST_OF_HEADERS:
                         # New header found
                         if elem_list !=[]:
@@ -436,6 +447,7 @@ class CouncilHansard(object):
                 
         logger.info(u'Done parsing all recognised sections.')
         self._dump_as_fixture(append_str='end')
+        #self._dump_as_fixture()
         
     ## Parsers for sections
     def _parse_main_heading(self,heading_list):  
@@ -688,6 +700,7 @@ class CouncilHansard(object):
                         break
      
         self.clerks = clerk_list
+        
         logger.info(u'Finished parsing clerks present.')
         
         return main_content
@@ -828,19 +841,22 @@ class CouncilHansard(object):
         logger.info(u'Parsing legislation table...')
         if elem_list is None:
             return None
-        
+        print elem_list.tag
         table = None
         # If there is a table, we work on it only
-        for elem in elem_list:
-            if elem.tag == 'table':
-                table = elem
-            break
-        else:
-            # Cannot find any table
-            logger.error(u'Cannot find a table for legislation.')
-            return None
-
-
+        try:
+            if elem_list.tag == 'table':
+                table = elem_list
+        except AttributeError:
+            for elem in elem_list:
+                if elem.tag == 'table':
+                    table = elem
+                    break
+            else:
+                # Cannot find any table
+                logger.error(u'Cannot find a table for legislation.')
+                return None
+            
         legislation_list = []
         if table is not None:
             # Each entry is enclosed by <tr></tr>, with each block in a <td></td>
@@ -884,11 +900,15 @@ class CouncilHansard(object):
         
         table = None
         # If there is a table, we work on it directly
-        for elem in elem_list:
-            if elem.tag == 'table':
-                table = elem
-                break
-            
+        try:
+            if elem_list.tag == 'table':
+                table = elem_list
+        except AttributeError:
+            for elem in elem_list:
+                if elem.tag == 'table':
+                    table = elem
+                    break
+        
         paper_list = []
         if table is not None:
             # table for Other Papers are 3-columns, with middle column contains a dash only.
@@ -902,7 +922,6 @@ class CouncilHansard(object):
                 if len(entry.xpath('./td'))==3 or len(entry.xpath('./td'))==2:
                     # Normal case
                     paper_no = entry.xpath('./td')[0].text_content().strip()
-                    
                     paper_title_and_content = entry.xpath('./td')[-1]
                     # Add a '\n' for evert <br> tag encountered so Python can recognize as newline
                     for br in paper_title_and_content.xpath('.//br'):
@@ -927,9 +946,13 @@ class CouncilHansard(object):
                 else:
                     logger.warn(u'Unrecognised number of columns. Expected 1, 2 or 3, got {}.'.format(len(entry.xpath('./td'))))
             paper_no = None
+                      
+            # If the table is the only element, we are done
+            if table == elem_list:
+                return paper_list
+            # Otherwise we remove it and go on
             elem_list.remove(table)
-            
-        
+
         # Even if there is a table, there may be item(s) not in it.
         # And for Chinese Hansard, Other Papers section usually is not in a formal table.
         if elem_list != []:
@@ -1125,6 +1148,15 @@ class CouncilHansard(object):
         Parse English xxx_answers to questions.
         """
         logger.info(u'Parsing (English) answers to questions.')
+        
+        # Drop <span> tags for pre-2012 hansard question number
+        for elem in elem_list:
+            if elem.tag == 'p' and elem.getchildren() != []:
+                first_child = elem.getchildren()[0]
+                if first_child.tag == 'span' and first_child.text is not None:
+                    if first_child.text.replace('.','').isdigit():
+                        first_child.drop_tag()
+
         #break the section into questions
         q_name=''
         q_elem=[]
@@ -1769,6 +1801,13 @@ class CouncilHansard(object):
         # already before coming in.
         # Sometimes there are text enclosed by brackets i.e. (xxx) when events happens.
         
+        for elem in elem_list:
+            spans = elem.xpath('.//span')
+            if spans != []:
+                for xx in spans:
+                    xx.drop_tag()
+        
+        
         # Before start, sometimes a speaker's name is split into 2 <strong> blocks.
         # Merge them for easier processing
         for elem in elem_list:
@@ -1923,9 +1962,27 @@ class CouncilHansard(object):
         """
         Saves the raw html to a fixture for testing
         """
-        with open('raw/tests/fixtures/docs/{}_{}.html'.format(self.uid,append_str), 'wb') as f:
-            f.write(etree.tostring(self.tree))
-
+        try:
+            print 'raw/tests/fixtures/docs/{}_{}.html'.format(self.uid,append_str)
+            with open('raw/tests/fixtures/docs/{}_{}.html'.format(self.uid,append_str), 'wb') as f:
+                f.write(etree.tostring(self.tree))
+        except:
+            print "Cannot open the file"
+    
+    def _convert_bold_to_strong(self):
+        """
+        Given a tree with styles, convert the tags of elements to 'strong' if the font style is bold.
+        This is mainly for pre-2012 Hansards.
+        """
+        for elem in self.tree.xpath('//*'):
+            try:
+                style =  elem.attrib['style']
+            except KeyError: # some Elements do not have style
+                continue
+            if 'font-weight:bold' in style:
+                elem.tag = 'strong'
+                #print elem.tag
+    
 
 # Common utils
 def get_all_hansards(language=-1):
