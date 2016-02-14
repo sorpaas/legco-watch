@@ -27,7 +27,6 @@ ENV INSIDE_DOCKER TRUE
 
 WORKDIR ${PROJECT_PATH}
 ADD requirements ${PROJECT_PATH}/requirements
-RUN apt-get install graphviz-dev pkg-config
 RUN pip install -r requirements/all_requirements.txt
 
 ADD . ${PROJECT_PATH}
