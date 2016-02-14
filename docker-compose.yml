@@ -50,7 +50,7 @@ worker:
     - ".:/legcowatch"
   command: "../bin/worker.sh"
   environment:
-    C_FORCE_ROOT: true
+    C_FORCE_ROOT: "true"
 
 rabbitmq:
   image: rabbitmq:latest
