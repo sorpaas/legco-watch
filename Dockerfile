@@ -14,13 +14,20 @@ RUN apt-get update && apt-get -y install build-essential \
  libxml2-dev \
  libxslt1-dev \
  curl \
- abiword
+ abiword \
+ graphviz \
+ libgraphviz-dev \
+ pkg-config \
+ python-setuptools \ 
+ python-dev \
+ ncurses-dev
 
 ENV PROJECT_PATH /legcowatch
 ENV INSIDE_DOCKER TRUE
 
 WORKDIR ${PROJECT_PATH}
 ADD requirements ${PROJECT_PATH}/requirements
+RUN apt-get install graphviz-dev pkg-config
 RUN pip install -r requirements/all_requirements.txt
 
 ADD . ${PROJECT_PATH}
