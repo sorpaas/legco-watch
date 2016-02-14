@@ -21,8 +21,7 @@ ENV INSIDE_DOCKER TRUE
 
 WORKDIR ${PROJECT_PATH}
 ADD requirements ${PROJECT_PATH}/requirements
-RUN pip install -r requirements/base_reqs.txt
-RUN pip install -r requirements/celery_reqs.txt
+RUN pip install -r requirements/all_requirements.txt
 
 ADD . ${PROJECT_PATH}
 
